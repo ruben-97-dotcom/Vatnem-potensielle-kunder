@@ -1,0 +1,176 @@
+<!doctype html>
+<html lang="nb">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Vatnem – potensielle kunder</title>
+  <link rel="stylesheet" href="/style.css">
+  <script src="/app.js" defer></script>
+</head>
+<body>
+  <!-- Innlogging -->
+  <section id="innlogging" class="innlogging" hidden>
+    <form id="innlogging-skjema" class="innlogging-kort" autocomplete="off">
+      <div class="merke"><span class="merke-v">V</span> Vatnem Revisjon</div>
+      <h1>Potensielle kunder</h1>
+      <p class="dempet">Skriv inn din 6-sifrede kode</p>
+      <input id="kode" class="kode-felt" inputmode="numeric" pattern="\d{6}" maxlength="6" autocomplete="one-time-code" aria-label="6-sifret kode" required>
+      <button class="knapp primar bred" type="submit">Logg inn</button>
+      <p id="innlogging-feil" class="feil" role="alert"></p>
+    </form>
+  </section>
+
+  <!-- Portal -->
+  <div id="portal" hidden>
+    <header class="topp">
+      <div class="merke"><span class="merke-v">V</span> Vatnem <span class="dempet">· Potensielle kunder</span></div>
+      <nav class="faner" role="tablist">
+        <button class="fane" data-fane="oversikt" role="tab">Oversikt</button>
+        <button class="fane" data-fane="selskaper" role="tab">Selskaper</button>
+        <button class="fane" data-fane="revisorer" role="tab">Revisormarkedet</button>
+      </nav>
+      <div class="bruker">
+        <span id="bruker-navn"></span>
+        <button id="logg-ut" class="knapp liten">Logg ut</button>
+      </div>
+    </header>
+
+    <main>
+      <!-- Oversikt -->
+      <section id="fane-oversikt" class="fane-innhold" hidden>
+        <div id="kpi" class="kpi-rad"></div>
+        <div class="to-kol">
+          <div class="kort">
+            <h2>Salgstrakt</h2>
+            <div id="trakt"></div>
+          </div>
+          <div class="kort">
+            <h2>Siste aktivitet</h2>
+            <ul id="siste-aktivitet" class="aktivitet-liste"></ul>
+          </div>
+        </div>
+        <div class="kort">
+          <h2>Snarveier</h2>
+          <div class="snarveier">
+            <button class="knapp" data-snarvei="ringeliste">Ringeliste: beste uringte</button>
+            <button class="knapp" data-snarvei="mine-forfalte">Mine forfalte oppfølginger</button>
+            <button class="knapp" data-snarvei="plikt-uten">Revisjonspliktige uten revisor</button>
+            <button class="knapp" data-snarvei="har-revisor">Har revisor i dag (byttekandidater)</button>
+            <button class="knapp" data-snarvei="prioritert">Prioriterte ★</button>
+            <button class="knapp" data-snarvei="kunder">Eksisterende Vatnem-kunder</button>
+          </div>
+        </div>
+        <div class="kort">
+          <h2>Data</h2>
+          <p id="synk-info" class="dempet"></p>
+          <button id="synk-knapp" class="knapp liten">Oppdater fra Brønnøysundregistrene</button>
+        </div>
+      </section>
+
+      <!-- Selskaper -->
+      <section id="fane-selskaper" class="fane-innhold" hidden>
+        <form id="filter" class="filter">
+          <input name="sok" type="search" placeholder="Søk navn, orgnr, daglig leder, styreleder…" class="sok">
+          <select name="kommune" aria-label="Kommune"><option value="">Alle kommuner</option></select>
+          <select name="status" aria-label="Status"><option value="">Alle statuser</option></select>
+          <select name="ringt" aria-label="Ringt">
+            <option value="">Ringt og ikke ringt</option>
+            <option value="nei">Ikke ringt</option>
+            <option value="ja">Ringt</option>
+          </select>
+          <select name="ek" aria-label="Egenkapital">
+            <option value="">All egenkapital</option>
+            <option value="positiv">Positiv egenkapital</option>
+            <option value="negativ">Negativ egenkapital</option>
+            <option value="ukjent">Mangler regnskap</option>
+          </select>
+          <select name="revisor" aria-label="Revisor">
+            <option value="">Alle (revisor)</option>
+            <option value="har">Har revisor</option>
+            <option value="ingen">Har ikke revisor</option>
+            <option value="plikt_uten">Revisjonspliktig uten revisor</option>
+            <option value="fravalgt">Har valgt bort revisjon</option>
+          </select>
+          <select name="min_inntekt" aria-label="Driftsinntekter">
+            <option value="">Alle inntekter</option>
+            <option value="1000000">≥ 1 mill</option>
+            <option value="3000000">≥ 3 mill</option>
+            <option value="7000000">≥ 7 mill</option>
+            <option value="20000000">≥ 20 mill</option>
+            <option value="50000000">≥ 50 mill</option>
+          </select>
+          <select name="min_ansatte" aria-label="Ansatte">
+            <option value="">Alle størrelser</option>
+            <option value="1">≥ 1 ansatt</option>
+            <option value="5">≥ 5 ansatte</option>
+            <option value="10">≥ 10 ansatte</option>
+            <option value="50">≥ 50 ansatte</option>
+          </select>
+          <select name="ansvarlig" aria-label="Ansvarlig"><option value="">Alle ansvarlige</option><option value="meg">Meg</option><option value="ingen">Ingen ansvarlig</option></select>
+          <select name="oppfolging" aria-label="Oppfølging">
+            <option value="">All oppfølging</option>
+            <option value="forfalt">Oppfølging i dag/forfalt</option>
+            <option value="planlagt">Har oppfølgingsdato</option>
+          </select>
+          <input name="bransje" type="search" placeholder="Bransje (f.eks. bygg, 41.)" class="bransje">
+          <select name="kunder" aria-label="Eksisterende kunder">
+            <option value="">Skjul Vatnem-kunder</option>
+            <option value="vis">Vis Vatnem-kunder</option>
+            <option value="kun">Kun Vatnem-kunder</option>
+          </select>
+          <input type="hidden" name="prioritet">
+          <div class="filter-handlinger">
+            <button type="button" id="nullstill" class="knapp liten">Nullstill</button>
+            <button type="button" id="eksport" class="knapp liten">Eksporter CSV</button>
+          </div>
+        </form>
+        <div class="liste-topp">
+          <span id="antall" class="dempet"></span>
+          <div id="sider" class="sider"></div>
+        </div>
+        <div class="tabell-ramme">
+          <table class="tabell">
+            <thead>
+              <tr>
+                <th class="smal" title="Prioritert">★</th>
+                <th data-sorter="navn">Selskap</th>
+                <th data-sorter="kommune">Kommune</th>
+                <th>Daglig leder</th>
+                <th>Styreleder</th>
+                <th data-sorter="revisor">Revisor i dag</th>
+                <th data-sorter="driftsinntekter" class="tall">Driftsinnt.</th>
+                <th data-sorter="egenkapital" class="tall">Egenkapital</th>
+                <th data-sorter="ansatte" class="tall">Ansatte</th>
+                <th data-sorter="status">Status</th>
+                <th class="smal">Ringt</th>
+                <th data-sorter="poeng" class="tall" title="Prioriteringspoeng 0–100">Poeng</th>
+              </tr>
+            </thead>
+            <tbody id="rader"></tbody>
+          </table>
+        </div>
+      </section>
+
+      <!-- Revisorer -->
+      <section id="fane-revisorer" class="fane-innhold" hidden>
+        <div class="kort">
+          <h2>Hvem reviderer selskapene i regionen?</h2>
+          <p class="dempet">Klikk en revisor for å se kundene deres. Selskaper som bytter revisor kommer ofte fra de store kjedene.</p>
+          <div class="tabell-ramme">
+            <table class="tabell">
+              <thead><tr><th>Revisor</th><th class="tall">Selskaper</th><th class="tall">Andel</th><th class="tall">Sum driftsinntekter</th><th class="tall">Med positiv EK</th></tr></thead>
+              <tbody id="revisor-rader"></tbody>
+            </table>
+          </div>
+        </div>
+      </section>
+    </main>
+
+    <!-- Detaljpanel -->
+    <div id="panel-bakgrunn" class="panel-bakgrunn" hidden></div>
+    <aside id="panel" class="panel" hidden aria-label="Selskapsdetaljer"></aside>
+  </div>
+
+  <div id="melding" class="melding" role="status" hidden></div>
+</body>
+</html>

@@ -1,0 +1,21 @@
+# Oppsett for Render (render.com). Databasen ligger på en fast disk, så statuser og notater
+# overlever omstart og ny publisering. Fast disk krever et betalt abonnement (Starter).
+services:
+  - type: web
+    name: vatnem-kundeportal
+    runtime: node
+    plan: starter
+    region: frankfurt
+    buildCommand: npm ci
+    startCommand: npm start
+    envVars:
+      - key: NODE_VERSION
+        value: "24"
+      - key: DATA_DIR
+        value: /var/data
+      - key: BRUKERE
+        sync: false
+    disk:
+      name: data
+      mountPath: /var/data
+      sizeGB: 1
