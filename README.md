@@ -36,7 +36,7 @@ Selskaper som allerede har Vatnem Revisjon som revisor er merket som eksisterend
 - Begge kan også startes manuelt fra oversiktssiden. Oppdateringene rører aldri statuser, notater eller annen
   oppfølging.
 
-### Felles mål (Toppturen)
+### Felles mål
 
 Oversikten viser et fjell der toppen er hovedmålet (for eksempel 30 nye kunder) og etappene er felles delmål
 underveis (for eksempel «Ringe 50 selskaper» eller «10 møter»). Målene settes med «Sett mål» øverst til høyre og er

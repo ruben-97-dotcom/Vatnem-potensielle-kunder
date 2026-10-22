@@ -161,7 +161,7 @@ function byttFane(fane) {
   if (!['oversikt', 'selskaper', 'varsler', 'plikt', 'revisorer'].includes(fane)) fane = 'oversikt';
   tilstand.fane = fane;
   history.replaceState(null, '', '#' + fane);
-  for (const b of $$('.fane')) {
+  for (const b of $$('.fane, .bjelle')) {
     b.classList.toggle('aktiv', b.dataset.fane === fane);
     if (b.dataset.fane === fane) b.setAttribute('aria-current', 'page'); else b.removeAttribute('aria-current');
   }
@@ -185,7 +185,7 @@ function visVarselTeller(n) {
   el.hidden = !n;
   el.textContent = n > 99 ? '99+' : String(n || '');
 }
-for (const b of $$('.fane')) b.addEventListener('click', () => byttFane(b.dataset.fane));
+for (const b of $$('.fane, .bjelle')) b.addEventListener('click', () => byttFane(b.dataset.fane));
 
 function settHilsen() {
   const t = new Date().getHours();
@@ -627,6 +627,48 @@ function lastFilter() {
   } catch {}
 }
 
+// --- Aktive filtre og «Flere filtre» -------------------------------------------
+const FILTERNAVN = {
+  sok: 'Søk', kommune: 'Kommune', status: 'Status', ringt: 'Ringt', ek: 'Egenkapital', min_inntekt: 'Inntekt',
+  min_ansatte: 'Ansatte', revisor: 'Revisor', kunder: 'Vatnem-kunder', ansvarlig: 'Ansvarlig', oppfolging: 'Oppfølging',
+  tilknyttet: 'Tilknyttede', bransje: 'Bransje', nye: 'Stiftet', prioritet: 'Prioriterte',
+};
+const FLERE_FILTRE = ['ek', 'min_inntekt', 'min_ansatte', 'revisor', 'kunder', 'ansvarlig', 'oppfolging', 'tilknyttet', 'bransje', 'nye'];
+
+function visAktiveFiltre() {
+  const f = $('#filter');
+  const aktive = Object.entries(FILTERNAVN).filter(([navn]) => f.elements[navn]?.value).map(([navn, etikett]) => {
+    const el = f.elements[navn];
+    const tekst = el.tagName === 'SELECT' ? el.selectedOptions[0]?.text : navn === 'prioritet' ? 'Ja' : el.value;
+    return { navn, etikett, tekst };
+  });
+  $('#aktive-filtre').innerHTML = aktive.length
+    ? aktive.map((a) => `<button type="button" class="filter-pille" data-fjern-filter="${a.navn}" aria-label="Fjern filteret ${esc(a.etikett)}">
+        <span class="dempet">${esc(a.etikett)}:</span> ${esc(a.tekst)} ${ikon('lukk')}</button>`).join('')
+    : '<span class="dempet">Ingen filtre valgt</span>';
+  const n = aktive.filter((a) => FLERE_FILTRE.includes(a.navn)).length;
+  $('#filter-antall').hidden = !n;
+  $('#filter-antall').textContent = n;
+  $('#nullstill').hidden = !aktive.length;
+}
+
+$('#aktive-filtre').addEventListener('click', (e) => {
+  const b = e.target.closest('[data-fjern-filter]');
+  if (!b) return;
+  $('#filter').elements[b.dataset.fjernFilter].value = '';
+  tilstand.side = 0;
+  lagreFilter();
+  lastListe();
+});
+
+function visFlereFiltre(apen) {
+  $('#filter-flere').hidden = !apen;
+  $('#flere-filtre').setAttribute('aria-expanded', String(apen));
+  try { localStorage.setItem('flere-filtre', apen ? '1' : '0'); } catch {}
+}
+$('#flere-filtre').addEventListener('click', () => visFlereFiltre($('#filter-flere').hidden));
+try { if (localStorage.getItem('flere-filtre') === '1') visFlereFiltre(true); } catch {}
+
 let sokTimer;
 $('#filter').addEventListener('input', (e) => {
   clearTimeout(sokTimer);
@@ -663,6 +705,7 @@ function tilknytningMerke(r) {
 let listeForesporsel = 0;
 async function lastListe() {
   const nr = ++listeForesporsel;
+  visAktiveFiltre();
   const p = new URLSearchParams({ ...filterVerdier(), side: tilstand.side, sorter: tilstand.sorter, retning: tilstand.retning });
   const data = await api('/api/selskaper?' + p);
   if (nr !== listeForesporsel) return;
@@ -780,7 +823,7 @@ async function apnePanel(orgnr) {
       <div class="merknader">${merknader}</div>
     </div>
     <div class="panel-innhold">
-      ${tilknyttedeKort(s.tilknyttede)}
+      ${tilknyttetVarsel(s.tilknyttede)}
       <div class="kort">
         <h3>Oppfølging</h3>
         <form id="oppfolging-skjema" class="felt-rutenett">
@@ -863,6 +906,8 @@ async function apnePanel(orgnr) {
           </li>`).join('') || '<li class="dempet">Ingen aktivitet ennå.</li>'}
         </ul>
       </div>
+
+      <div id="tilknyttede">${tilknyttedeKort(s.tilknyttede)}</div>
     </div>`;
 
   $('#panel').hidden = false;
@@ -877,6 +922,7 @@ async function apnePanel(orgnr) {
   $$('#panel [data-person-felt]').forEach((inp) => inp.addEventListener('change', async () => {
     if (await oppdater(orgnr, { [inp.dataset.personFelt]: inp.value.trim() })) apnePanel(orgnr);
   }));
+  $('#til-tilknyttede')?.addEventListener('click', () => $('#tilknyttede').scrollIntoView({ behavior: 'smooth' }));
   lastBrregDetaljer(orgnr);
 
   const skjema = $('#oppfolging-skjema');
@@ -1012,6 +1058,15 @@ async function lastBrregDetaljer(orgnr) {
   </div>` : '';
 
   mal.innerHTML = historikk + info + roller + avdelinger + regnskap;
+}
+
+// Kort varsel øverst i panelet når et tilknyttet selskap allerede er kontaktet.
+// Selve listen over tilknyttede selskaper ligger nederst.
+function tilknyttetVarsel(liste) {
+  const n = (liste || []).filter((t) => t.ringt || t.status !== 'ny' || t.er_kunde).length;
+  if (!n) return '';
+  return `<div class="varsel-boks">${ikon('varsel')} <span>${n === 1 ? 'Ett tilknyttet selskap' : n + ' tilknyttede selskaper'} er allerede kontaktet eller er kunde. Sjekk før du ringer.
+    <button class="tekstknapp" id="til-tilknyttede">Se tilknyttede selskaper</button></span></div>`;
 }
 
 function tilknyttedeKort(liste) {

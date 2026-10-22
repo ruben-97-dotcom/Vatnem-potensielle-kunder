@@ -1,4 +1,4 @@
-/* Vatnem Toppturen – Midnattsol */
+/* Vatnem Vekst – Midnattsol */
 :root {
   --bg: #FBF7EC;
   --hero: #F7E3B5;
@@ -413,3 +413,35 @@ main { max-width: 1440px; margin: 0 auto; padding: 28px 32px 48px; }
 .radliste .selskap-navn:hover { color: var(--accent); }
 .revisor-navn { color: var(--ink); font-weight: 600; }
 #revisor-rader tr.oss .revisor-navn { font-weight: 800; }
+
+/* Varselbjelle øverst til høyre */
+.bjelle { position: relative; width: 44px; height: 44px; margin-left: 4px; border-radius: var(--r-pille); border: 0; background: rgba(255, 255, 255, 0.6); color: var(--ink); cursor: pointer; display: grid; place-items: center; }
+.bjelle:hover { background: #fff; }
+.bjelle.aktiv { background: var(--ink); color: #fff; }
+.bjelle .ikon { width: 20px; height: 20px; }
+.bjelle-teller { position: absolute; top: -2px; right: -4px; }
+
+/* --- Filter under Selskaper ------------------------------------------------- */
+.filter { display: block; padding: 20px; }
+.filter-hoved { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; }
+.filter-hoved select { width: auto; flex: 0 1 190px; }
+.sok-felt { position: relative; flex: 1 1 320px; display: block; }
+.sok-felt .ikon { position: absolute; left: 16px; top: 50%; transform: translateY(-50%); color: var(--muted); width: 18px; height: 18px; pointer-events: none; }
+.sok-felt input { width: 100%; padding-left: 44px; }
+.flere-knapp { min-height: 44px; border-radius: var(--r-pille); }
+.flere-knapp[aria-expanded="true"] { background: var(--ink); color: #fff; }
+.filter-antall { display: inline-grid; place-items: center; min-width: 22px; height: 22px; padding: 0 6px; border-radius: var(--r-pille); background: var(--sun); color: var(--ink); font-size: 12px; font-weight: 800; }
+.filter-flere { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 16px 24px; margin-top: 18px; padding-top: 18px; border-top: 1px solid var(--line); }
+.filter-gruppe { border: 0; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 10px; min-width: 0; }
+.filter-gruppe legend { padding: 0; margin-bottom: 4px; font-size: 13px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.13em; color: var(--accent); }
+.filter-felt { display: flex; flex-direction: column; gap: 4px; font-size: 13px; color: var(--muted); }
+.filter-felt select, .filter-felt input { width: 100%; }
+.filter-bunn { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; margin-top: 14px; }
+.aktive-filtre { display: flex; flex-wrap: wrap; gap: 6px; flex: 1 1 300px; align-items: center; font-size: 14px; }
+.filter-pille { display: inline-flex; align-items: center; gap: 6px; min-height: 36px; padding: 4px 10px 4px 14px; border-radius: var(--r-pille); border: 0; background: var(--bg); font: inherit; font-size: 14px; font-weight: 600; color: var(--ink); cursor: pointer; }
+.filter-pille:hover { background: var(--line); }
+.filter-pille .ikon { width: 14px; height: 14px; color: var(--muted); }
+.filter-bunn .filter-handlinger { margin-left: auto; }
+@media (max-width: 700px) {
+  .filter-hoved select, .flere-knapp { flex: 1 1 calc(50% - 5px); }
+}

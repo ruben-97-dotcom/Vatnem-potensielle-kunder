@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>Vatnem Toppturen – potensielle kunder</title>
+  <title>Vatnem Vekst</title>
   <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns=%27http://www.w3.org/2000/svg%27 viewBox=%270 0 36 36%27%3E%3Ccircle cx=%2724%27 cy=%2712%27 r=%277%27 fill=%27%23F28C38%27/%3E%3Cpath d=%27M2 32 14 12l6 9 4-5 10 16z%27 fill=%27%231A2B2B%27/%3E%3C/svg%3E">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -16,7 +16,7 @@
   <section id="innlogging" class="innlogging" hidden>
     <form id="innlogging-skjema" class="innlogging-kort" autocomplete="off">
       <svg class="logo" width="36" height="36" viewBox="0 0 36 36" aria-hidden="true"><circle cx="24" cy="12" r="7" fill="#F28C38"/><path d="M2 32 14 12l6 9 4-5 10 16z" fill="#1A2B2B"/></svg>
-      <h1>Potensielle kunder</h1>
+      <h1>Vatnem Vekst</h1>
       <p class="dempet">Skriv inn din 6-sifrede kode</p>
       <input id="kode" class="kode-felt" inputmode="numeric" pattern="\d{6}" maxlength="6" autocomplete="one-time-code" aria-label="6-sifret kode" required>
       <button class="knapp primar bred hoy" type="submit">Logg inn</button>
@@ -34,20 +34,23 @@
   <div id="portal" hidden>
     <div class="toppfelt">
       <header class="topp">
-        <a class="merke" href="#oversikt" data-gaa="oversikt" aria-label="Vatnem Toppturen – oversikt">
+        <a class="merke" href="#oversikt" data-gaa="oversikt" aria-label="Vatnem Vekst – oversikt">
           <svg width="36" height="36" viewBox="0 0 36 36" aria-hidden="true"><circle cx="24" cy="12" r="7" fill="#F28C38"/><path d="M2 32 14 12l6 9 4-5 10 16z" fill="#1A2B2B"/></svg>
-          <span class="merke-navn">Vatnem</span> <span class="merke-under">Toppturen</span>
+          <span class="merke-navn">Vatnem</span> <span class="merke-under">Vekst</span>
         </a>
         <nav class="faner" aria-label="Hovedmeny">
           <button class="fane" data-fane="oversikt">Oversikt</button>
           <button class="fane" data-fane="selskaper">Selskaper</button>
-          <button class="fane" data-fane="varsler">Varsler <span id="varsel-teller" class="teller" hidden></span></button>
           <button class="fane" data-fane="plikt">Revisjonsplikt</button>
           <button class="fane" data-fane="revisorer">Revisormarkedet</button>
         </nav>
         <div class="bruker">
           <span class="dempet" id="hilsen">God morgen,</span> <strong id="bruker-navn"></strong>
           <button id="logg-ut" class="tekstknapp">Logg ut</button>
+          <button class="bjelle" data-fane="varsler" id="bjelle" aria-label="Varsler">
+            <svg class="ikon" viewBox="0 0 24 24" aria-hidden="true"><path d="M6 9a6 6 0 0 1 12 0c0 6 2.5 7.5 2.5 7.5h-17S6 15 6 9"/><path d="M10 20a2 2 0 0 0 4 0"/></svg>
+            <span id="varsel-teller" class="teller bjelle-teller" hidden></span>
+          </button>
         </div>
       </header>
 
@@ -194,69 +197,120 @@
       <!-- Selskaper -->
       <section id="fane-selskaper" class="fane-innhold" hidden>
         <form id="filter" class="filter kort">
-          <input name="sok" type="search" placeholder="Søk navn, orgnr, daglig leder, styreleder…" class="sok" aria-label="Søk">
-          <select name="kommune" aria-label="Kommune"><option value="">Alle kommuner</option></select>
-          <select name="status" aria-label="Status"><option value="">Alle statuser</option></select>
-          <select name="ringt" aria-label="Ringt">
-            <option value="">Ringt og ikke ringt</option>
-            <option value="nei">Ikke ringt</option>
-            <option value="ja">Ringt</option>
-          </select>
-          <select name="ek" aria-label="Egenkapital">
-            <option value="">All egenkapital</option>
-            <option value="positiv">Positiv egenkapital</option>
-            <option value="negativ">Negativ egenkapital</option>
-            <option value="ukjent">Mangler regnskap</option>
-          </select>
-          <select name="revisor" aria-label="Revisor">
-            <option value="">Alle (revisor)</option>
-            <option value="har">Har revisor</option>
-            <option value="ingen">Har ikke revisor</option>
-            <option value="plikt_uten">Revisjonspliktig uten revisor</option>
-            <option value="fravalgt">Har valgt bort revisjon</option>
-          </select>
-          <select name="min_inntekt" aria-label="Driftsinntekter">
-            <option value="">Alle inntekter</option>
-            <option value="1000000">≥ 1 mill</option>
-            <option value="3000000">≥ 3 mill</option>
-            <option value="7000000">≥ 7 mill</option>
-            <option value="20000000">≥ 20 mill</option>
-            <option value="50000000">≥ 50 mill</option>
-          </select>
-          <select name="min_ansatte" aria-label="Ansatte">
-            <option value="">Alle størrelser</option>
-            <option value="1">≥ 1 ansatt</option>
-            <option value="5">≥ 5 ansatte</option>
-            <option value="10">≥ 10 ansatte</option>
-            <option value="50">≥ 50 ansatte</option>
-          </select>
-          <select name="ansvarlig" aria-label="Ansvarlig"><option value="">Alle ansvarlige</option><option value="meg">Meg</option><option value="ingen">Ingen ansvarlig</option></select>
-          <select name="oppfolging" aria-label="Oppfølging">
-            <option value="">All oppfølging</option>
-            <option value="forfalt">Oppfølging i dag/forfalt</option>
-            <option value="planlagt">Har oppfølgingsdato</option>
-          </select>
-          <input name="bransje" type="search" placeholder="Bransje (f.eks. bygg, 41.)" class="bransje" aria-label="Bransje">
-          <select name="kunder" aria-label="Eksisterende kunder">
-            <option value="">Skjul Vatnem-kunder</option>
-            <option value="vis">Vis Vatnem-kunder</option>
-            <option value="kun">Kun Vatnem-kunder</option>
-          </select>
-          <select name="nye" aria-label="Nyetablerte">
-            <option value="">Alle aldre</option>
-            <option value="30">Stiftet siste 30 dager</option>
-            <option value="90">Stiftet siste 90 dager</option>
-            <option value="365">Stiftet siste år</option>
-          </select>
-          <select name="tilknyttet" aria-label="Tilknyttede selskaper">
-            <option value="">Alle (tilknyttede)</option>
-            <option value="ukontaktet">Skjul hvis tilknyttet selskap er kontaktet</option>
-          </select>
-          <input type="hidden" name="prioritet">
-          <div class="filter-handlinger">
-            <button type="button" id="nullstill" class="tekstknapp">Nullstill</button>
-            <button type="button" id="eksport" class="knapp sekundar">Eksporter CSV</button>
+          <div class="filter-hoved">
+            <label class="sok-felt">
+              <svg class="ikon" viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="m20 20-4-4"/></svg>
+              <input name="sok" type="search" placeholder="Søk etter selskap, orgnr eller person" aria-label="Søk">
+            </label>
+            <select name="kommune" aria-label="Kommune"><option value="">Alle kommuner</option></select>
+            <select name="status" aria-label="Status"><option value="">Alle statuser</option></select>
+            <select name="ringt" aria-label="Ringt">
+              <option value="">Ringt og ikke ringt</option>
+              <option value="nei">Ikke ringt</option>
+              <option value="ja">Ringt</option>
+            </select>
+            <button type="button" id="flere-filtre" class="knapp sekundar flere-knapp" aria-expanded="false" aria-controls="filter-flere">
+              <svg class="ikon" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 6h16M7 12h10M10 18h4"/></svg>
+              Flere filtre <span id="filter-antall" class="filter-antall" hidden></span>
+            </button>
           </div>
+
+          <div id="filter-flere" class="filter-flere" hidden>
+            <fieldset class="filter-gruppe">
+              <legend>Økonomi</legend>
+              <label class="filter-felt"><span>Egenkapital</span>
+                <select name="ek">
+                  <option value="">Alle</option>
+                  <option value="positiv">Positiv egenkapital</option>
+                  <option value="negativ">Negativ egenkapital</option>
+                  <option value="ukjent">Mangler regnskap</option>
+                </select>
+              </label>
+              <label class="filter-felt"><span>Driftsinntekter</span>
+                <select name="min_inntekt">
+                  <option value="">Alle</option>
+                  <option value="1000000">Minst 1 mill</option>
+                  <option value="3000000">Minst 3 mill</option>
+                  <option value="7000000">Minst 7 mill</option>
+                  <option value="20000000">Minst 20 mill</option>
+                  <option value="50000000">Minst 50 mill</option>
+                </select>
+              </label>
+              <label class="filter-felt"><span>Ansatte</span>
+                <select name="min_ansatte">
+                  <option value="">Alle</option>
+                  <option value="1">Minst 1</option>
+                  <option value="5">Minst 5</option>
+                  <option value="10">Minst 10</option>
+                  <option value="50">Minst 50</option>
+                </select>
+              </label>
+            </fieldset>
+
+            <fieldset class="filter-gruppe">
+              <legend>Revisor</legend>
+              <label class="filter-felt"><span>Revisor i dag</span>
+                <select name="revisor">
+                  <option value="">Alle</option>
+                  <option value="har">Har revisor</option>
+                  <option value="ingen">Har ikke revisor</option>
+                  <option value="plikt_uten">Revisjonspliktig uten revisor</option>
+                  <option value="fravalgt">Har valgt bort revisjon</option>
+                </select>
+              </label>
+              <label class="filter-felt"><span>Vatnem-kunder</span>
+                <select name="kunder">
+                  <option value="">Skjul</option>
+                  <option value="vis">Vis</option>
+                  <option value="kun">Bare Vatnem-kunder</option>
+                </select>
+              </label>
+            </fieldset>
+
+            <fieldset class="filter-gruppe">
+              <legend>Oppfølging</legend>
+              <label class="filter-felt"><span>Ansvarlig</span>
+                <select name="ansvarlig"><option value="">Alle</option><option value="meg">Meg</option><option value="ingen">Ingen ansvarlig</option></select>
+              </label>
+              <label class="filter-felt"><span>Oppfølgingsdato</span>
+                <select name="oppfolging">
+                  <option value="">Alle</option>
+                  <option value="forfalt">I dag eller forfalt</option>
+                  <option value="planlagt">Har oppfølgingsdato</option>
+                </select>
+              </label>
+              <label class="filter-felt"><span>Tilknyttede selskaper</span>
+                <select name="tilknyttet">
+                  <option value="">Vis alle</option>
+                  <option value="ukontaktet">Skjul hvis et tilknyttet er kontaktet</option>
+                </select>
+              </label>
+            </fieldset>
+
+            <fieldset class="filter-gruppe">
+              <legend>Selskap</legend>
+              <label class="filter-felt"><span>Bransje</span>
+                <input name="bransje" type="search" placeholder="F.eks. bygg eller 41.">
+              </label>
+              <label class="filter-felt"><span>Stiftet</span>
+                <select name="nye">
+                  <option value="">Når som helst</option>
+                  <option value="30">Siste 30 dager</option>
+                  <option value="90">Siste 90 dager</option>
+                  <option value="365">Siste år</option>
+                </select>
+              </label>
+            </fieldset>
+          </div>
+
+          <div class="filter-bunn">
+            <div id="aktive-filtre" class="aktive-filtre" aria-live="polite"></div>
+            <div class="filter-handlinger">
+              <button type="button" id="nullstill" class="tekstknapp">Nullstill</button>
+              <button type="button" id="eksport" class="knapp sekundar liten">Eksporter CSV</button>
+            </div>
+          </div>
+          <input type="hidden" name="prioritet">
         </form>
         <div class="liste-topp">
           <span id="antall" class="dempet"></span>
