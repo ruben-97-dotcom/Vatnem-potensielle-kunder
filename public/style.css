@@ -636,3 +636,45 @@ main:has(#fane-selskaper:not([hidden])), main:has(#fane-plikt:not([hidden])) { m
   .brikke-tall { font-size: 18px; }
   .brikke-etikett { font-size: 12px; }
 }
+
+/* --- Tydeligere skille mellom radene i tabellene ------------------------------ */
+.tabell th { border-bottom: 1.5px solid var(--border); }
+.tabell td { border-bottom: 1px solid var(--border); }
+.radliste tr:nth-child(even), #revisor-rader tr:nth-child(even) { background: #FAF5E8; }
+.radliste tr:hover, #revisor-rader tr:hover { background: #F3EBD8; }
+.radliste tr td:first-child, #revisor-rader tr td:first-child { box-shadow: inset 3px 0 0 transparent; }
+.radliste tr:hover td:first-child, #revisor-rader tr:hover td:first-child { box-shadow: inset 3px 0 0 var(--accent); }
+#revisor-rader tr.oss, #revisor-rader tr.oss:hover { background: var(--hero); }
+
+/* Kortvisning: hvert selskap som eget kort */
+@media (max-width: 1023px) {
+  .tabell-ramme:has(.radliste) { background: none; box-shadow: none; padding: 0; border-radius: 0; }
+  .radliste tr, .radliste tr:nth-child(even) {
+    background: var(--card); border: 1px solid var(--border); border-radius: 20px;
+    padding: 16px; margin-bottom: 12px;
+  }
+  .radliste tr:last-child { border-bottom: 1px solid var(--border); }
+  .radliste tr:hover { background: var(--card); border-color: var(--accent); }
+  .radliste tr:hover td:first-child { box-shadow: none; }
+  #rader td:nth-child(1) { top: 8px; right: 8px; }
+  .radliste tr.er-ny { background: #FDF6E3; }
+}
+@media (max-width: 1023px) {
+  .tabell .radliste td { border-bottom: 0; }
+  #fane-selskaper .radliste .celle-person, #fane-selskaper .radliste .selskap-navn, #fane-selskaper .radliste .under,
+  #fane-plikt .radliste .selskap-navn, #fane-plikt .radliste .under { max-width: none; }
+}
+
+/* Fjellet: merkene plasseres relativt til høyden, så de ligger langs ruta i alle størrelser */
+.fjell svg { height: 100%; }
+@media (max-width: 700px) {
+  .fjell { height: 270px; margin-top: 4px; }
+  .fjell svg { height: 100%; }
+  .fjell-merker { display: block; }
+  .etappe-liste { display: none; }
+  .etappe-pille { font-size: 12px; padding: 3px 9px; max-width: 150px; }
+  .merke-etappe { gap: 4px; }
+  .etappe-prikk { width: 9px; height: 9px; border-width: 2.5px; margin-bottom: -7px; }
+  .merke-etappe.forste-etappe { transform: translate(-10px, -100%); }
+  .merke-etappe.topp-etappe { transform: translate(calc(-100% + 10px), -100%); }
+}

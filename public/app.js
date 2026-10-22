@@ -252,7 +252,7 @@ function tegnHero(o) {
       <span class="etappe-pille" title="${esc(e.tall + ' ' + e.tekst)}"><b>${esc(e.tall)}</b> ${esc(e.tekst)}</span>
       <span class="etappe-prikk"></span>
     </div>`).join('');
-  $$('#fjell-merker .merke-etappe').forEach((el) => { el.style.left = el.dataset.x + '%'; el.style.top = el.dataset.y + 'px'; });
+  $$('#fjell-merker .merke-etappe').forEach((el) => { el.style.left = el.dataset.x + '%'; el.style.top = (el.dataset.y / 320) * 100 + '%'; });
   $('#etappe-liste').innerHTML = liste.map((e) =>
     `<li class="${e.topp ? 'topp-etappe' : ''} ${e.naadd ? 'naadd' : ''}"><b>${esc(e.tall)}</b> ${esc(e.tekst)}</li>`).join('');
 
