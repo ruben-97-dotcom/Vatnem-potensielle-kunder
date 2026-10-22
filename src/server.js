@@ -54,7 +54,7 @@ app.use((req, res, next) => {
   res.setHeader('X-Content-Type-Options', 'nosniff');
   res.setHeader('X-Frame-Options', 'DENY');
   res.setHeader('Referrer-Policy', 'no-referrer');
-  res.setHeader('Content-Security-Policy', "default-src 'self'; img-src 'self' data:; style-src 'self'; script-src 'self'; frame-ancestors 'none'");
+  res.setHeader('Content-Security-Policy', "default-src 'self'; img-src 'self' data:; style-src 'self' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; script-src 'self'; frame-ancestors 'none'");
   next();
 });
 app.use(express.json({ limit: '50kb' }));
@@ -355,7 +355,7 @@ app.get('/api/oversikt', (req, res) => {
       SUM(revisjonspliktig = 0 AND revisor_orgnr IS NULL AND plikt_andel >= 0.7) naer
     ${base}`).get();
   res.json({ ...tall, perStatus, forfalt, forfaltAlle, kunder, sisteAktivitet, sisteVarsler, nyeSiste30,
-    ulesteVarsler: ulesteVarsler(req.bruker.id), naerPlikt });
+    ulesteVarsler: ulesteVarsler(req.bruker.id), naerPlikt, maal: maalMedFremdrift() });
 });
 
 app.get('/api/revisorer', (req, res) => {
@@ -379,6 +379,56 @@ app.get('/api/meta', (req, res) => {
     synk: { ...brreg.status, siste: siste('full'), sisteEndringer: siste('endringer'), intervallMin: ENDRINGER_INTERVALL_MIN },
     ulesteVarsler: ulesteVarsler(req.bruker.id),
   });
+});
+
+// --- Felles mål og delmål ----------------------------------------------------------
+// Lagres som JSON i innstillinger. Fremdrift regnes fra statusene i oppfølgingen:
+// et selskap som har nådd et senere steg teller også på de tidligere stegene.
+const MAAL_METRIKKER = {
+  ringt: { navn: 'Ringt', sql: 'ringt = 1' },
+  interessert: { navn: 'Interessert', sql: "status IN ('interessert', 'mote', 'tilbud', 'vunnet')" },
+  mote: { navn: 'Møte avtalt', sql: "status IN ('mote', 'tilbud', 'vunnet')" },
+  tilbud: { navn: 'Tilbud sendt', sql: "status IN ('tilbud', 'vunnet')" },
+  vunnet: { navn: 'Kunde vunnet', sql: "status = 'vunnet'" },
+};
+const STANDARD_MAAL = { hovedmal: { tittel: 'nye kunder', antall: 20, frist: null }, delmal: [] };
+
+function lesMaal() {
+  const rad = db.prepare("SELECT verdi FROM innstillinger WHERE nokkel = 'maal'").get();
+  try { return rad ? JSON.parse(rad.verdi) : STANDARD_MAAL; } catch { return STANDARD_MAAL; }
+}
+
+function maalMedFremdrift() {
+  const m = lesMaal();
+  const tell = (metrikk) => db.prepare(`SELECT COUNT(*) n FROM v_selskaper WHERE aktiv = 1 AND ${MAAL_METRIKKER[metrikk].sql}`).get().n;
+  return {
+    ...m,
+    hovedmal: { ...m.hovedmal, verdi: tell('vunnet') },
+    delmal: m.delmal.map((d) => ({ ...d, verdi: tell(d.metrikk) })),
+    metrikker: Object.fromEntries(Object.entries(MAAL_METRIKKER).map(([k, v]) => [k, v.navn])),
+  };
+}
+
+app.put('/api/maal', (req, res) => {
+  const b = req.body || {};
+  const heltall = (v) => Number.isInteger(Number(v)) && Number(v) > 0 && Number(v) <= 100000;
+  const dato = (v) => (v && /^\d{4}-\d{2}-\d{2}$/.test(v) ? v : null);
+  const h = b.hovedmal || {};
+  if (!heltall(h.antall)) return res.status(400).json({ feil: 'Hovedmålet må være et positivt tall' });
+  const delmal = Array.isArray(b.delmal) ? b.delmal.slice(0, 8) : [];
+  for (const d of delmal) {
+    if (!MAAL_METRIKKER[d.metrikk]) return res.status(400).json({ feil: 'Ukjent type delmål' });
+    if (!heltall(d.antall)) return res.status(400).json({ feil: 'Delmål må ha et positivt tall' });
+  }
+  const maal = {
+    hovedmal: { tittel: tekst(h.tittel, 60) || 'nye kunder', antall: Number(h.antall), frist: dato(h.frist) },
+    delmal: delmal.map((d) => ({ tittel: tekst(d.tittel, 60) || MAAL_METRIKKER[d.metrikk].navn, metrikk: d.metrikk, antall: Number(d.antall) })),
+    oppdatert: new Date().toISOString(),
+    oppdatertAv: req.bruker.navn,
+  };
+  db.prepare(`INSERT INTO innstillinger (nokkel, verdi) VALUES ('maal', ?)
+    ON CONFLICT(nokkel) DO UPDATE SET verdi = excluded.verdi`).run(JSON.stringify(maal));
+  res.json(maalMedFremdrift());
 });
 
 // --- Varsler (hendelser fra Brreg) --------------------------------------------

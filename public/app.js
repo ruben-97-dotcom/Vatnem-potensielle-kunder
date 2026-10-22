@@ -39,7 +39,7 @@ function dato(iso, medTid = false) {
     (medTid ? ' ' + d.toLocaleTimeString('nb-NO', { hour: '2-digit', minute: '2-digit' }) : '');
 }
 const statusInfo = (kode) => tilstand.meta.statuser.find((s) => s.kode === kode) || { navn: kode, farge: 'gray' };
-const statusMerke = (kode) => { const s = statusInfo(kode); return `<span class="merkelapp m-${s.farge}">${esc(s.navn)}</span>`; };
+const statusMerke = (kode) => `<span class="status-pille s-${esc(kode)}">${esc(statusInfo(kode).navn)}</span>`;
 
 let meldingTimer;
 function melding(tekst) {
@@ -108,6 +108,7 @@ async function start() {
   $('#innlogging').hidden = true;
   $('#portal').hidden = false;
   $('#bruker-navn').textContent = tilstand.meg.navn;
+  settHilsen();
   fyllFilterValg();
   lastFilter();
   byttFane(location.hash.slice(1) || 'oversikt');
@@ -124,20 +125,60 @@ function fyllFilterValg() {
   for (const b of m.brukere) f.ansvarlig.add(new Option(b.navn, b.id));
 }
 
+// --- Ikoner (inline SVG med strek) --------------------------------------------
+const IKON = {
+  telefon: '<path d="M5 4h4l2 5-2.5 1.5a11 11 0 0 0 5 5L15 13l5 2v4a2 2 0 0 1-2 2A16 16 0 0 1 3 6a2 2 0 0 1 2-2"/>',
+  lenke: '<path d="M10 13a5 5 0 0 0 7 0l3-3a5 5 0 0 0-7-7l-1 1"/><path d="M14 11a5 5 0 0 0-7 0l-3 3a5 5 0 0 0 7 7l1-1"/>',
+  varsel: '<path d="M12 3 2 20h20z"/><path d="M12 10v4"/><path d="M12 17h.01"/>',
+  stjerne: '<path d="m12 3 2.7 5.6 6.1.9-4.4 4.3 1 6.1L12 17l-5.4 2.9 1-6.1-4.4-4.3 6.1-.9z"/>',
+  lukk: '<path d="M6 6l12 12M18 6 6 18"/>',
+  ekstern: '<path d="M14 4h6v6"/><path d="M20 4 10 14"/><path d="M18 14v5a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1V7a1 1 0 0 1 1-1h5"/>',
+  flagg: '<path d="M5 21V4"/><path d="M5 4h11l-2 4 2 4H5"/>',
+};
+const ikon = (navn, klasse = '') => `<svg class="ikon ${klasse}" viewBox="0 0 24 24" aria-hidden="true">${IKON[navn]}</svg>`;
+
+// Gjør "CEDRA NORGE AS" om til "Cedra Norge AS" for visning.
+const NAVN_UNNTAK = { Bdo: 'BDO', Kpmg: 'KPMG', Pwc: 'PwC', Pricewaterhousecoopers: 'PricewaterhouseCoopers', Ey: 'EY', Tsrevisjon: 'TSrevisjon', Ecit: 'ECIT' };
+function penNavn(navn) {
+  if (!navn) return '';
+  return navn.toLowerCase().replace(/(^|[\s\-&(/])([a-zæøå])/g, (m, f, b) => f + b.toUpperCase())
+    .replace(/\b(As|Asa|Sa|Da|Ans|Ba|Iks)\b/g, (m) => m.toUpperCase())
+    .replace(/[A-ZÆØÅ][a-zæøå]+/g, (m) => NAVN_UNNTAK[m] || m);
+}
+// Kort revisornavn til små flater: "CEDRA NORGE AS" → "Cedra".
+const kortRevisor = (navn) => penNavn(navn).replace(/\s+(Norge\s+)?AS$/, '');
+const lokalIDag = () => new Date().toLocaleDateString('sv-SE');
+
 // --- Faner ------------------------------------------------------------------
+const SIDETITLER = {
+  selskaper: ['Selskaper', ''],
+  varsler: ['Varsler', 'Portalen sjekker Brønnøysundregistrene jevnlig og varsler når selskaper i området bytter eller mister revisor eller regnskapsfører, når nye selskaper registreres, og når et selskap uten revisor passerer grensen for revisjonsplikt.'],
+  plikt: ['Revisjonsplikt', 'Selskaper uten revisor som er over grensen for revisjonsplikt, eller nær den.'],
+  revisorer: ['Hvem reviderer regionen?', 'Klikk en revisor for å se kundene deres. Selskaper som bytter revisor kommer ofte fra de store kjedene.'],
+};
+
 function byttFane(fane) {
   if (!['oversikt', 'selskaper', 'varsler', 'plikt', 'revisorer'].includes(fane)) fane = 'oversikt';
   tilstand.fane = fane;
   history.replaceState(null, '', '#' + fane);
-  for (const b of $$('.fane')) b.classList.toggle('aktiv', b.dataset.fane === fane);
+  for (const b of $$('.fane')) {
+    b.classList.toggle('aktiv', b.dataset.fane === fane);
+    if (b.dataset.fane === fane) b.setAttribute('aria-current', 'page'); else b.removeAttribute('aria-current');
+  }
   for (const s of $$('.fane-innhold')) s.hidden = s.id !== 'fane-' + fane;
+  $('#hero-oversikt').hidden = fane !== 'oversikt';
+  $('#hero-side').hidden = fane === 'oversikt';
+  if (fane !== 'oversikt') {
+    $('#side-tittel').textContent = SIDETITLER[fane][0];
+    $('#side-ingress').textContent = SIDETITLER[fane][1];
+  }
   if (fane === 'oversikt') lastOversikt();
   if (fane === 'selskaper') lastListe();
   if (fane === 'revisorer') lastRevisorer();
   if (fane === 'varsler') lastVarsler();
   if (fane === 'plikt') lastPlikt();
 }
-$$('[data-gaa]').forEach((b) => b.addEventListener('click', () => byttFane(b.dataset.gaa)));
+$$('[data-gaa]').forEach((b) => b.addEventListener('click', (e) => { e.preventDefault(); byttFane(b.dataset.gaa); }));
 
 function visVarselTeller(n) {
   const el = $('#varsel-teller');
@@ -146,62 +187,257 @@ function visVarselTeller(n) {
 }
 for (const b of $$('.fane')) b.addEventListener('click', () => byttFane(b.dataset.fane));
 
+function settHilsen() {
+  const t = new Date().getHours();
+  $('#hilsen').textContent = t < 10 ? 'God morgen,' : t < 17 ? 'God dag,' : 'God kveld,';
+}
+
 // --- Oversikt ---------------------------------------------------------------
-async function lastOversikt() {
-  const [o, meta] = await Promise.all([api('/api/oversikt'), api('/api/meta')]);
-  tilstand.meta = meta;
-  const kontaktet = o.totalt - (o.perStatus.ny || 0);
-  const iDialog = (o.perStatus.interessert || 0) + (o.perStatus.mote || 0) + (o.perStatus.tilbud || 0);
-  const kpi = [
-    ['Potensielle kunder', o.totalt, {}],
-    ['Positiv egenkapital', o.ek_positiv, { ek: 'positiv' }],
-    ['Ringt', o.ringt, { ringt: 'ja' }],
-    ['I dialog', iDialog, { status: 'interessert,mote,tilbud' }],
-    ['Kunder vunnet', o.perStatus.vunnet || 0, { status: 'vunnet' }],
-    ['Mine forfalte oppfølginger', o.forfalt, { ansvarlig: 'meg', oppfolging: 'forfalt' }, o.forfalt > 0],
-    ['Nye varsler', o.ulesteVarsler, 'varsler', o.ulesteVarsler > 0],
-    ['Nye selskaper siste 30 dager', o.nyeSiste30, { nye: '30', sorter: 'stiftet' }],
-    ['Revisjonspliktige uten revisor', o.naerPlikt?.over_uten, 'plikt'],
-    ['Nær grensen for revisjonsplikt', o.naerPlikt?.naer, 'plikt'],
+// Ruta opp fjellet i SVG-ens koordinater (viewBox 1200 × 320).
+const RUTE = [[60, 287], [264, 236], [480, 190], [696, 140], [900, 98], [1080, 52]];
+
+function punktPaaRuta(andel) {
+  const lengder = RUTE.slice(1).map((p, i) => Math.hypot(p[0] - RUTE[i][0], p[1] - RUTE[i][1]));
+  let igjen = andel * lengder.reduce((a, b) => a + b, 0);
+  for (let i = 0; i < lengder.length; i++) {
+    if (igjen <= lengder[i] || i === lengder.length - 1) {
+      const t = Math.min(1, igjen / lengder[i]);
+      return [RUTE[i][0] + (RUTE[i + 1][0] - RUTE[i][0]) * t, RUTE[i][1] + (RUTE[i + 1][1] - RUTE[i][1]) * t];
+    }
+    igjen -= lengder[i];
+  }
+  return RUTE.at(-1);
+}
+
+// Etappene på fjellet: felles delmål hvis de er satt, ellers salgstrakten.
+function etapper(o) {
+  const ps = o.perStatus;
+  const m = o.maal;
+  const basecamp = { tall: nf.format(ps.ny || 0), tekst: 'basecamp' };
+  const topp = { tall: `${nf.format(m.hovedmal.verdi)} / ${nf.format(m.hovedmal.antall)}`, tekst: m.hovedmal.tittel, topp: true };
+  if (m.delmal.length) {
+    const del = m.delmal.map((d) => ({ tall: `${nf.format(d.verdi)} / ${nf.format(d.antall)}`, tekst: d.tittel, naadd: d.verdi >= d.antall }));
+    const alle = [basecamp, ...del, topp];
+    return alle.map((e, i) => ({ ...e, punkt: punktPaaRuta(i / (alle.length - 1)) }));
+  }
+  const trakt = [
+    basecamp,
+    { tall: nf.format((ps.ingen_svar || 0) + (ps.ring_tilbake || 0)), tekst: 'ringt' },
+    { tall: nf.format(ps.interessert || 0), tekst: 'interessert' },
+    { tall: nf.format(ps.mote || 0), tekst: 'møte avtalt' },
+    { tall: nf.format(ps.tilbud || 0), tekst: 'tilbud sendt' },
+    { tall: nf.format(ps.vunnet || 0), tekst: 'kunder vunnet', topp: true },
   ];
-  $('#kpi').innerHTML = kpi.map(([t, v, f, varsel], i) =>
-    `<button class="kpi${varsel ? ' varsel' : ''}" data-i="${i}"><div class="kpi-tall">${nf.format(v || 0)}</div><div class="kpi-tekst">${esc(t)}</div></button>`).join('');
-  $$('#kpi .kpi').forEach((el) => el.addEventListener('click', () => {
-    const mal = kpi[el.dataset.i][2];
-    if (typeof mal === 'string') byttFane(mal); else visListeMed(mal);
+  return trakt.map((e, i) => ({ ...e, punkt: RUTE[i] }));
+}
+
+function tegnHero(o) {
+  const h = o.maal.hovedmal;
+  $('#hero-tittel').textContent = `${nf.format(h.verdi)} av ${nf.format(h.antall)} ${h.tittel} er på toppen`;
+  const prosent = h.antall ? Math.round((h.verdi / h.antall) * 100) : 0;
+  const nesteDel = o.maal.delmal.find((d) => d.verdi < d.antall);
+  $('#hero-brikker').innerHTML = `
+    ${nesteDel ? `<div class="brikke"><div class="brikke-etikett">Neste delmål: ${esc(nesteDel.tittel)}</div>
+      <div class="brikke-tall">${nf.format(nesteDel.verdi)} / ${nf.format(nesteDel.antall)}</div></div>` : ''}
+    <div class="brikke"><div class="brikke-etikett">Sesongen${h.frist ? ' · frist ' + dato(h.frist) : ''}</div>
+      <div class="brikke-tall">${prosent} % av målet</div></div>
+    <button class="brikke brikke-knapp" id="endre-maal"><div class="brikke-etikett">Felles mål</div>
+      <div class="brikke-tall">${o.maal.delmal.length ? 'Endre mål' : 'Sett mål'}</div></button>`;
+  $('#endre-maal').addEventListener('click', () => visMaalDialog(o.maal));
+
+  const liste = etapper(o);
+  $('#fjell-merker').innerHTML = liste.map((e) => `
+    <div class="merke-etappe ${e.topp ? 'topp-etappe' : ''} ${e.naadd ? 'naadd' : ''}"
+      data-x="${(e.punkt[0] / 1200) * 100}" data-y="${e.punkt[1]}">
+      <span class="etappe-pille" title="${esc(e.tall + ' ' + e.tekst)}"><b>${esc(e.tall)}</b> ${esc(e.tekst)}</span>
+      <span class="etappe-prikk"></span>
+    </div>`).join('');
+  $$('#fjell-merker .merke-etappe').forEach((el) => { el.style.left = el.dataset.x + '%'; el.style.top = el.dataset.y + 'px'; });
+  $('#etappe-liste').innerHTML = liste.map((e) =>
+    `<li class="${e.topp ? 'topp-etappe' : ''} ${e.naadd ? 'naadd' : ''}"><b>${esc(e.tall)}</b> ${esc(e.tekst)}</li>`).join('');
+
+  const snudde = (o.perStatus.ikke_interessert || 0) + (o.perStatus.ikke_aktuell || 0);
+  $('#snudde').textContent = `Snudde underveis: ${nf.format(snudde)}`;
+}
+
+function tegnNesteSteg(r) {
+  const el = $('#neste-steg');
+  const topp = `<div class="neste-topp"><span class="kicker">Neste steg opp</span>
+    <span class="dempet neste-kilde">Fra ringelisten «Beste uringte»</span></div>`;
+  if (!r) {
+    el.innerHTML = topp + '<p class="tom-neste">Ringelisten er tom. Alle selskaper med positiv egenkapital er kontaktet.</p>';
+    return;
+  }
+  const fornavn = (r.daglig_leder || '').split(' ')[0];
+  const tlf = r.dl_telefon || r.mobil || r.telefon;
+  const ringTekst = `${ikon('telefon')} Ring ${esc(fornavn || 'selskapet')}`;
+  const ring = tlf
+    ? `<a class="knapp primar ring-knapp" href="tel:${esc(tlf.replace(/\s/g, ''))}">${ringTekst}</a>`
+    : `<button class="knapp primar ring-knapp" data-apne="${esc(r.orgnr)}" title="Ingen telefon registrert – åpner selskapet">${ringTekst}</button>`;
+  const under = [r.nace_tekst, r.kommune, r.daglig_leder ? `${r.daglig_leder}, daglig leder` : null].filter(Boolean).map(esc).join(' · ');
+  const revisor = r.revisor_navn ? kortRevisor(r.revisor_navn) : r.fravalg_revisjon ? 'Valgt bort' : 'Ingen';
+  el.innerHTML = `${topp}
+    <div class="neste-hoved">
+      <div>
+        <h2 class="neste-navn"><button data-apne="${esc(r.orgnr)}">${esc(penNavn(r.navn))}</button></h2>
+        <div class="neste-under">${under}</div>
+      </div>
+      ${ring}
+    </div>
+    <div class="nokkelrad">
+      <div class="nokkelboks"><div class="nokkelboks-etikett">Inntekt</div><div class="nokkelboks-tall">${kr(r.driftsinntekter)}</div></div>
+      <div class="nokkelboks"><div class="nokkelboks-etikett">Egenkapital</div><div class="nokkelboks-tall">${ekCelle(r.egenkapital)}</div></div>
+      <div class="nokkelboks"><div class="nokkelboks-etikett">Ansatte</div><div class="nokkelboks-tall">${r.ansatte ?? '–'}</div></div>
+      <div class="nokkelboks"><div class="nokkelboks-etikett">Revisor i dag</div><div class="nokkelboks-tall" title="${esc(revisor)}">${esc(revisor)}</div></div>
+    </div>
+    <div class="statusknapper">
+      <button class="knapp" data-neste-status="ingen_svar">Ikke svar</button>
+      <button class="knapp" data-neste-status="ring_tilbake">Ring tilbake</button>
+      <button class="knapp k-mork-kant" data-neste-status="interessert">Interessert</button>
+      <button class="knapp k-fylt" data-neste-status="mote">Møte avtalt</button>
+    </div>`;
+  $$('[data-apne]', el).forEach((b) => b.addEventListener('click', () => apnePanel(b.dataset.apne)));
+  $$('[data-neste-status]', el).forEach((b) => b.addEventListener('click', async () => {
+    if (await oppdater(r.orgnr, { status: b.dataset.nesteStatus })) lastOversikt();
   }));
+}
+
+function tegnDagensRute(rader) {
+  const iDag = lokalIDag();
+  $('#dagens-rute').innerHTML = rader.length ? rader.map((r) => {
+    const forfalt = r.oppfolging_dato < iDag;
+    const tid = r.oppfolging_dato === iDag ? 'I dag' : new Date(r.oppfolging_dato + 'T00:00:00').toLocaleDateString('nb-NO', { day: 'numeric', month: 'short' });
+    return `<li>
+      <span class="rute-tid ${forfalt ? 'forfalt' : ''}" title="${forfalt ? 'Forfalt' : ''}">${esc(tid)}</span>
+      <div><button class="lenke-knapp rute-navn" data-orgnr="${esc(r.orgnr)}">${esc(penNavn(r.navn))}</button>
+        <div class="rute-type">${esc(statusInfo(r.status).navn)}${forfalt ? ' · forfalt' : ''}</div></div>
+    </li>`;
+  }).join('') : '<li class="tom-rad">Ingen oppfølginger i dag.</li>';
+  $$('#dagens-rute [data-orgnr]').forEach((b) => b.addEventListener('click', () => apnePanel(b.dataset.orgnr)));
+}
+
+function tegnForemelding(revisorer) {
+  const el = $('#foremelding');
+  const andre = revisorer.filter((r) => r.orgnr !== '988075167');
+  if (!andre.length) { el.hidden = true; return; }
+  el.hidden = false;
+  const storst = andre[0];
+  const totalt = revisorer.reduce((s, r) => s + r.antall, 0);
+  const andel = ((storst.antall / totalt) * 100).toLocaleString('nb-NO', { maximumFractionDigits: 1 });
+  const navn = kortRevisor(storst.navn);
+  el.innerHTML = `<div class="kicker">Føremelding</div>
+    <h2>${nf.format(storst.antall)} selskaper hos ${esc(navn)}</h2>
+    <p>${andel} % av regionen. Bytter kommer ofte fra de store kjedene.</p>
+    <button class="tekstknapp" id="vis-storst">Vis ${esc(navn)}-kundene →</button>`;
+  $('#vis-storst').addEventListener('click', () => visRevisorKunder(storst.orgnr, storst.navn));
+}
+
+async function lastOversikt() {
+  const ringeliste = new URLSearchParams({ ringt: 'nei', ek: 'positiv', status: 'ny', tilknyttet: 'ukontaktet', sorter: 'poeng', retning: 'desc', per_side: 10 });
+  const rute = new URLSearchParams({ ansvarlig: 'meg', oppfolging: 'forfalt', sorter: 'oppfolging', retning: 'asc', per_side: 10 });
+  const [o, meta, revisorer, neste, mineRute] = await Promise.all([
+    api('/api/oversikt'), api('/api/meta'), api('/api/revisorer'),
+    api('/api/selskaper?' + ringeliste), api('/api/selskaper?' + rute),
+  ]);
+  tilstand.meta = meta;
   visVarselTeller(o.ulesteVarsler);
+  tegnHero(o);
+  tegnNesteSteg(neste.rader[0]);
+  tegnDagensRute(mineRute.rader);
+  tegnForemelding(revisorer);
+  $('#antall-nye').textContent = nf.format(o.nyeSiste30 || 0);
+  $('#antall-plikt').textContent = nf.format((o.naerPlikt?.over_uten || 0) + (o.naerPlikt?.naer || 0));
 
   $('#siste-varsler').innerHTML = o.sisteVarsler.length
     ? o.sisteVarsler.map((h) => `<li>
-        ${varselMerke(h.type)} <button class="lenke-knapp" data-orgnr="${esc(h.orgnr)}">${esc(h.navn)}</button>
+        ${varselMerke(h.type)} <button class="lenke-knapp" data-orgnr="${esc(h.orgnr)}">${esc(penNavn(h.navn))}</button>
         <div>${esc(h.tekst)}</div>
         <div class="aktivitet-meta">${dato(h.tidspunkt, true)}</div></li>`).join('')
-    : '<li class="dempet">Ingen varsler ennå. Portalen sjekker Brreg jevnlig og varsler her når noe skjer.</li>';
+    : '<li class="tom-rad">Ingen varsler ennå. Portalen sjekker Brreg jevnlig og varsler her når noe skjer.</li>';
   $$('#siste-varsler [data-orgnr]').forEach((el) => el.addEventListener('click', () => apnePanel(el.dataset.orgnr)));
-
-  const maks = Math.max(1, ...meta.statuser.map((s) => o.perStatus[s.kode] || 0));
-  $('#trakt').innerHTML = meta.statuser.map((s) => {
-    const n = o.perStatus[s.kode] || 0;
-    return `<button class="trakt-rad" data-status="${s.kode}">
-      <span class="trakt-navn">${esc(s.navn)}</span>
-      <span class="trakt-spor"><span class="trakt-fyll" data-bredde="${(n / maks) * 100}"></span></span>
-      <span class="trakt-tall">${nf.format(n)}</span></button>`;
-  }).join('') + `<p class="dempet">${nf.format(kontaktet)} av ${nf.format(o.totalt)} er tatt kontakt med. ${nf.format(o.kunder)} selskaper har Vatnem som revisor allerede og er holdt utenfor.</p>`;
-  $$('#trakt .trakt-fyll').forEach((el) => { el.style.width = el.dataset.bredde + '%'; });
-  $$('#trakt .trakt-rad').forEach((el) => el.addEventListener('click', () => visListeMed({ status: el.dataset.status })));
 
   $('#siste-aktivitet').innerHTML = o.sisteAktivitet.length
     ? o.sisteAktivitet.map((a) => `<li>
-        <button class="lenke-knapp" data-orgnr="${esc(a.orgnr)}">${esc(a.selskap || a.orgnr)}</button>
+        <button class="lenke-knapp" data-orgnr="${esc(a.orgnr)}">${esc(penNavn(a.selskap || a.orgnr))}</button>
         <div>${esc(a.tekst.length > 140 ? a.tekst.slice(0, 140) + '…' : a.tekst)}</div>
         <div class="aktivitet-meta">${esc(a.bruker || '')} · ${dato(a.opprettet, true)}</div></li>`).join('')
-    : '<li class="dempet">Ingen aktivitet ennå. Start med ringelisten!</li>';
+    : '<li class="tom-rad">Ingen aktivitet ennå. Start med ringelisten.</li>';
   $$('#siste-aktivitet [data-orgnr]').forEach((el) => el.addEventListener('click', () => apnePanel(el.dataset.orgnr)));
 
   visSynk(meta.synk);
 }
 
+// --- Felles mål (dialog) ---------------------------------------------------------
+function visMaalDialog(maal) {
+  let d = $('#maal-dialog');
+  if (!d) {
+    d = document.createElement('dialog');
+    d.id = 'maal-dialog';
+    d.className = 'dialog';
+    d.setAttribute('aria-labelledby', 'maal-tittel');
+    document.body.append(d);
+  }
+  const metrikker = maal.metrikker || {};
+  const valg = (valgt) => Object.entries(metrikker).map(([k, v]) => `<option value="${k}" ${k === valgt ? 'selected' : ''}>${esc(v)}</option>`).join('');
+  const delRad = (x = {}) => `<div class="delmal-rad">
+      <input name="d-tittel" placeholder="Navn, f.eks. Ringe 50 selskaper" value="${esc(x.tittel || '')}" aria-label="Navn på delmål" maxlength="60">
+      <select name="d-metrikk" aria-label="Hva som telles">${valg(x.metrikk || 'ringt')}</select>
+      <input name="d-antall" type="number" min="1" max="100000" placeholder="Antall" value="${esc(x.antall || '')}" aria-label="Antall" required>
+      <button type="button" class="ikonknapp" data-fjern aria-label="Fjern delmål">${ikon('lukk')}</button>
+    </div>`;
+  d.innerHTML = `<form method="dialog" id="maal-skjema">
+    <h2 id="maal-tittel">Felles mål</h2>
+    <p class="dempet">Målene er felles for alle brukere. Fremdriften regnes fra statusene: et selskap som har kommet lenger, teller også på de tidligere stegene. Delmålene vises som etapper opp fjellet.</p>
+    <div class="seksjon">
+      <div class="etikett">Hovedmål (toppen)</div>
+      <div class="maal-rad">
+        <input name="h-antall" type="number" min="1" max="100000" value="${esc(maal.hovedmal.antall)}" aria-label="Antall" required>
+        <input name="h-tittel" value="${esc(maal.hovedmal.tittel)}" aria-label="Hva målet gjelder" maxlength="60">
+        <input name="h-frist" type="date" value="${esc(maal.hovedmal.frist || '')}" aria-label="Frist (valgfri)">
+      </div>
+    </div>
+    <div class="seksjon">
+      <div class="etikett">Delmål underveis (etapper, nederst først)</div>
+      <div id="delmal-liste">${maal.delmal.map(delRad).join('')}</div>
+      <button type="button" class="tekstknapp" id="nytt-delmal">+ Legg til delmål</button>
+    </div>
+    ${maal.oppdatertAv ? `<p class="dempet etikett">Sist endret av ${esc(maal.oppdatertAv)} ${dato(maal.oppdatert, true)}</p>` : ''}
+    <p class="feil" id="maal-feil" role="alert"></p>
+    <div class="dialog-knapper">
+      <button type="button" class="knapp" id="maal-avbryt">Avbryt</button>
+      <button type="submit" class="knapp primar">Lagre mål</button>
+    </div>
+  </form>`;
+  const liste = $('#delmal-liste', d);
+  const koblFjern = () => $$('[data-fjern]', d).forEach((b) => { b.onclick = () => b.closest('.delmal-rad').remove(); });
+  koblFjern();
+  $('#nytt-delmal', d).addEventListener('click', () => {
+    if ($$('.delmal-rad', d).length >= 8) return;
+    liste.insertAdjacentHTML('beforeend', delRad());
+    koblFjern();
+    $$('.delmal-rad', d).at(-1).querySelector('input').focus();
+  });
+  $('#maal-avbryt', d).addEventListener('click', () => d.close());
+  $('#maal-skjema', d).addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const f = e.target;
+    const delmal = $$('.delmal-rad', d).map((r) => ({
+      tittel: r.querySelector('[name=d-tittel]').value.trim(),
+      metrikk: r.querySelector('[name=d-metrikk]').value,
+      antall: Number(r.querySelector('[name=d-antall]').value),
+    }));
+    try {
+      await api('/api/maal', { method: 'PUT', body: {
+        hovedmal: { antall: Number(f['h-antall'].value), tittel: f['h-tittel'].value.trim(), frist: f['h-frist'].value || null },
+        delmal,
+      } });
+      d.close();
+      melding('Målene er lagret');
+      lastOversikt();
+    } catch (err) { $('#maal-feil', d).textContent = err.message; }
+  });
+  d.showModal();
+}
 function visSynk(s) {
   const knapper = [$('#synk-knapp'), $('#synk-full-knapp')];
   if (s.kjorer) {
@@ -228,6 +464,9 @@ async function startSynk(type) {
 }
 $('#synk-knapp').addEventListener('click', () => startSynk('endringer'));
 $('#synk-full-knapp').addEventListener('click', () => startSynk('full'));
+
+// Statusmenyen får samme farge som statuspillen.
+function statusKlasse(sel) { sel.className = 'status-velger s-' + sel.value; }
 
 // --- Varsler ----------------------------------------------------------------
 const VARSELTYPER = {
@@ -256,14 +495,14 @@ $$('#varsel-filter .chip').forEach((c) => c.addEventListener('click', () => {
 
 function statusCeller(r) {
   const statusValg = tilstand.meta.statuser.map((s) => `<option value="${s.kode}" ${s.kode === r.status ? 'selected' : ''}>${esc(s.navn)}</option>`).join('');
-  return `<td>${r.er_kunde ? '<span class="merkelapp m-green">Vatnem-kunde</span>' : `<select class="status-velger" data-handling="status" aria-label="Status">${statusValg}</select>`}</td>
+  return `<td>${r.er_kunde ? '<span class="merkelapp m-green">Vatnem-kunde</span>' : `<select class="status-velger s-${esc(r.status)}" data-handling="status" aria-label="Status">${statusValg}</select>`}</td>
     <td class="smal"><input type="checkbox" data-handling="ringt" ${r.ringt ? 'checked' : ''} aria-label="Ringt"></td>`;
 }
 
 function sideknapper(el, data, last) {
   const sider = Math.max(1, Math.ceil(data.totalt / data.perSide));
   el.innerHTML = `<button class="knapp liten" data-side="${data.side - 1}" ${data.side <= 0 ? 'disabled' : ''}>‹ Forrige</button>
-    <span class="dempet">Side ${data.side + 1} av ${sider}</span>
+    <span class="side-aktiv" aria-current="page">Side ${data.side + 1} av ${sider}</span>
     <button class="knapp liten" data-side="${data.side + 1}" ${data.side + 1 >= sider ? 'disabled' : ''}>Neste ›</button>`;
   $$('[data-side]', el).forEach((b) => b.addEventListener('click', () => { last(Number(b.dataset.side)); window.scrollTo(0, 0); }));
 }
@@ -277,7 +516,7 @@ async function lastVarsler() {
     <tr data-orgnr="${r.orgnr}" class="${r.ny ? 'er-ny' : ''} ${r.ringt ? 'er-ringt' : ''}">
       <td class="ingen-brudd">${dato(r.tidspunkt, true)}${r.ny ? ' <span class="merkelapp m-blue liten-merke">Ny</span>' : ''}</td>
       <td>${varselMerke(r.type)}<div class="under varsel-tekst">${esc(r.tekst)}</div></td>
-      <td><div class="selskap-navn">${esc(r.navn)}</div><div class="under">${esc(r.orgnr)} · ${esc(r.orgform)}${r.nace_tekst ? ' · ' + esc(r.nace_tekst) : ''}</div></td>
+      <td><button class="lenke-knapp selskap-navn" type="button">${esc(r.navn)}</button><div class="under">${esc(r.orgnr)} · ${esc(r.orgform)}${r.nace_tekst ? ' · ' + esc(r.nace_tekst) : ''}</div></td>
       <td>${esc(r.kommune)}</td>
       <td class="tall">${kr(r.driftsinntekter)}</td>
       <td class="tall">${ekCelle(r.egenkapital)}</td>
@@ -316,7 +555,7 @@ async function lastPlikt() {
   sideknapper($('#plikt-sider'), data, (s) => { pliktTilstand.side = s; lastPlikt(); });
   $('#plikt-rader').innerHTML = data.rader.length ? data.rader.map((r) => `
     <tr data-orgnr="${r.orgnr}" class="${r.ringt ? 'er-ringt' : ''}">
-      <td><div class="selskap-navn">${esc(r.navn)}</div><div class="under">${esc(r.orgnr)} · ${esc(r.orgform)}${r.nace_tekst ? ' · ' + esc(r.nace_tekst) : ''}</div>${tilknytningMerke(r)}</td>
+      <td><button class="lenke-knapp selskap-navn" type="button">${esc(r.navn)}</button><div class="under">${esc(r.orgnr)} · ${esc(r.orgform)}${r.nace_tekst ? ' · ' + esc(r.nace_tekst) : ''}</div>${tilknytningMerke(r)}</td>
       <td>${esc(r.kommune)}</td>
       <td>${grenseStolpe(r.driftsinntekter, g.driftsinntekter, kr(r.driftsinntekter))}</td>
       <td>${grenseStolpe(r.sum_eiendeler, g.sumEiendeler, kr(r.sum_eiendeler))}</td>
@@ -336,6 +575,7 @@ const SNARVEIER = {
   'prioritert': { prioritet: '1' },
   'kunder': { kunder: 'kun', sorter: 'driftsinntekter' },
   'nye': { nye: '90', sorter: 'stiftet' },
+  'nye30': { nye: '30', sorter: 'stiftet' },
 };
 $$('[data-snarvei]').forEach((b) => b.addEventListener('click', () => visListeMed(SNARVEIER[b.dataset.snarvei])));
 
@@ -415,9 +655,9 @@ $$('th[data-sorter]').forEach((th) => th.addEventListener('click', () => {
 function tilknytningMerke(r) {
   if (!r.tilknyttede) return '';
   if (r.tilknyttede_kontaktet) {
-    return `<span class="merkelapp m-amber liten-merke" title="Et selskap med samme person i ledelsen/styret er allerede kontaktet eller er kunde">⚠ ${r.tilknyttede_kontaktet} tilknyttet kontaktet</span>`;
+    return `<span class="merkelapp m-amber liten-merke" title="Et selskap med samme person i ledelsen/styret er allerede kontaktet eller er kunde">${ikon('varsel')} ${r.tilknyttede_kontaktet} tilknyttet kontaktet</span>`;
   }
-  return `<span class="merkelapp m-gray liten-merke" title="Selskaper med samme person i ledelsen/styret">🔗 ${r.tilknyttede} tilknyttede</span>`;
+  return `<span class="merkelapp m-gray liten-merke" title="Selskaper med samme person i ledelsen/styret">${ikon('lenke')} ${r.tilknyttede} tilknyttede</span>`;
 }
 
 let listeForesporsel = 0;
@@ -433,19 +673,20 @@ async function lastListe() {
   });
 
   $('#antall').textContent = `${nf.format(data.totalt)} selskaper`;
+  if (tilstand.fane === 'selskaper') $('#side-ingress').textContent = `${nf.format(data.totalt)} selskaper passer filteret`;
   const sider = Math.max(1, Math.ceil(data.totalt / data.perSide));
   $('#sider').innerHTML = `<button class="knapp liten" data-side="${data.side - 1}" ${data.side <= 0 ? 'disabled' : ''}>‹ Forrige</button>
-    <span class="dempet">Side ${data.side + 1} av ${sider}</span>
+    <span class="side-aktiv" aria-current="page">Side ${data.side + 1} av ${sider}</span>
     <button class="knapp liten" data-side="${data.side + 1}" ${data.side + 1 >= sider ? 'disabled' : ''}>Neste ›</button>`;
   $$('#sider [data-side]').forEach((b) => b.addEventListener('click', () => { tilstand.side = Number(b.dataset.side); lastListe(); window.scrollTo(0, 0); }));
 
   const statusValg = tilstand.meta.statuser.map((s) => `<option value="${s.kode}">${esc(s.navn)}</option>`).join('');
   $('#rader').innerHTML = data.rader.length ? data.rader.map((r) => `
     <tr data-orgnr="${r.orgnr}" class="${r.ringt ? 'er-ringt' : ''}">
-      <td class="smal"><button class="stjerne ${r.prioritet ? 'pa' : ''}" data-handling="prioritet" title="Prioriter" aria-label="Prioriter">★</button></td>
-      <td><div class="selskap-navn">${esc(r.navn)}</div><div class="under">${esc(r.orgnr)} · ${esc(r.orgform)}${r.nace_tekst ? ' · ' + esc(r.nace_tekst) : ''}</div>${tilknytningMerke(r)}</td>
+      <td class="smal"><button class="stjerne ${r.prioritet ? 'pa' : ''}" data-handling="prioritet" title="Prioriter" aria-label="Prioriter" aria-pressed="${r.prioritet ? 'true' : 'false'}"><svg viewBox="0 0 24 24" aria-hidden="true">${IKON.stjerne}</svg></button></td>
+      <td><button class="lenke-knapp selskap-navn" type="button">${esc(r.navn)}</button><div class="under">${esc(r.orgnr)} · ${esc(r.orgform)}${r.nace_tekst ? ' · ' + esc(r.nace_tekst) : ''}</div>${tilknytningMerke(r)}</td>
       <td>${esc(r.kommune)}</td>
-      <td class="celle-person"><div>${esc(r.daglig_leder) || '<span class="tom">–</span>'}${r.dl_telefon ? ` <span class="dempet">📞 ${esc(r.dl_telefon)}</span>` : ''}</div><div class="under">${r.styreleder ? 'Styreleder: ' + esc(r.styreleder) : ''}${r.sl_telefon ? ' · 📞 ' + esc(r.sl_telefon) : ''}</div></td>
+      <td class="celle-person"><div>${esc(r.daglig_leder) || '<span class="tom">–</span>'}${r.dl_telefon ? ` <span class="dempet">${ikon('telefon')} ${esc(r.dl_telefon)}</span>` : ''}</div><div class="under">${r.styreleder ? 'Styreleder: ' + esc(r.styreleder) : ''}${r.sl_telefon ? ' · ' + ikon('telefon') + ' ' + esc(r.sl_telefon) : ''}</div></td>
       <td class="celle-person">${r.revisor_navn ? esc(r.revisor_navn) : r.fravalg_revisjon ? '<span class="dempet">Valgt bort</span>' : r.revisjonspliktig ? '<span class="merkelapp m-amber">Ingen – pliktig?</span>' : '<span class="tom">Ingen</span>'}</td>
       <td class="celle-person" title="${esc(r.regnskapsforer_navn || '')}">${esc(r.regnskapsforer_navn) || '<span class="tom">Ingen registrert</span>'}</td>
       <td class="tall">${kr(r.driftsinntekter)}${r.regnskap_aar && r.regnskap_aar !== tilstand.meta.sisteRegnskapsaar ? `<div class="under">${r.regnskap_aar}</div>` : ''}</td>
@@ -460,7 +701,7 @@ async function lastListe() {
 
   for (const tr of $$('#rader tr[data-orgnr]')) {
     const r = data.rader.find((x) => x.orgnr === tr.dataset.orgnr);
-    $('[data-handling="status"]', tr).value = r.status;
+    const sel = $('[data-handling="status"]', tr); sel.value = r.status; statusKlasse(sel);
   }
 }
 
@@ -468,12 +709,16 @@ async function lastListe() {
 document.addEventListener('click', async (e) => {
   const tr = e.target.closest('.radliste tr[data-orgnr]');
   if (!tr) return;
-  const handling = e.target.dataset.handling;
+  // Klikk på et ikon inne i en knapp skal telle som klikk på knappen.
+  const handling = e.target.closest('[data-handling]')?.dataset.handling;
   if (handling === 'status' || handling === 'ringt') return;
+  if (e.target.closest('a')) return;
   if (handling === 'prioritet') {
-    const pa = !e.target.classList.contains('pa');
+    const pa = !e.target.closest('.stjerne').classList.contains('pa');
     await oppdater(tr.dataset.orgnr, { prioritet: pa });
-    e.target.classList.toggle('pa', pa);
+    const stj = e.target.closest('.stjerne');
+    stj.classList.toggle('pa', pa);
+    stj.setAttribute('aria-pressed', String(pa));
     return;
   }
   apnePanel(tr.dataset.orgnr);
@@ -488,7 +733,7 @@ document.addEventListener('change', async (e) => {
   if (ny) {
     tr.classList.toggle('er-ringt', !!ny.ringt);
     const cb = $('[data-handling="ringt"]', tr); if (cb) cb.checked = !!ny.ringt;
-    const sv = $('[data-handling="status"]', tr); if (sv) sv.value = ny.status;
+    const sv = $('[data-handling="status"]', tr); if (sv) { sv.value = ny.status; statusKlasse(sv); }
   }
 });
 
@@ -524,7 +769,7 @@ async function apnePanel(orgnr) {
 
   $('#panel').innerHTML = `
     <div class="panel-topp">
-      <button class="panel-lukk" aria-label="Lukk">×</button>
+      <button class="panel-lukk" aria-label="Lukk">${ikon('lukk')}</button>
       <h2>${esc(s.navn)}</h2>
       <div class="dempet">${esc(s.orgnr)} · ${esc(s.orgform)} · ${esc(s.kommune)}${s.nace_tekst ? ' · ' + esc(s.nace_tekst) : ''}</div>
       <div class="panel-lenker">
@@ -560,7 +805,7 @@ async function apnePanel(orgnr) {
           <label class="felt hel">E-post kontaktperson
             <input name="kontakt_epost" type="email" value="${esc(s.kontakt_epost || '')}">
           </label>
-          <label class="bryter"><input type="checkbox" name="prioritet" ${s.prioritet ? 'checked' : ''}> Prioritert ★</label>
+          <label class="bryter"><input type="checkbox" name="prioritet" ${s.prioritet ? 'checked' : ''}> Prioritert</label>
         </form>
       </div>
 
@@ -613,7 +858,7 @@ async function apnePanel(orgnr) {
         <ul class="tidslinje">
           ${s.aktiviteter.map((a) => `<li>
             ${a.bruker_id === tilstand.meg.id && a.type !== 'status' ? `<button class="slett" data-slett="${a.id}">Slett</button>` : ''}
-            <div class="${a.type === 'status' ? 't-status' : 't-tekst'}">${a.type === 'samtale' ? '📞 ' : ''}${esc(a.tekst)}</div>
+            <div class="${a.type === 'status' ? 't-status' : 't-tekst'}">${a.type === 'samtale' ? ikon('telefon') + ' ' : ''}${esc(a.tekst)}</div>
             <div class="aktivitet-meta">${esc(a.bruker || '')} · ${dato(a.opprettet, true)}</div>
           </li>`).join('') || '<li class="dempet">Ingen aktivitet ennå.</li>'}
         </ul>
@@ -664,7 +909,7 @@ async function apnePanel(orgnr) {
 function personKontakt(navn, felt, telefon, sted) {
   if (!navn) return '–';
   const sok = encodeURIComponent(`${navn} ${sted || ''}`.trim());
-  const ring = telefon ? ` <a class="ring-lenke" href="tel:${esc(telefon.replace(/\s/g, ''))}">📞 Ring</a>` : '';
+  const ring = telefon ? ` <a class="ring-lenke" href="tel:${esc(telefon.replace(/\s/g, ''))}">${ikon('telefon')} Ring</a>` : '';
   return `<div class="person-navn">${esc(navn)}${ring}</div>
     <div class="person-kontakt">
       <input class="person-tlf" name="${felt}" data-person-felt="${felt}" type="tel" placeholder="Telefonnummer" value="${esc(telefon || '')}" aria-label="Telefon ${esc(navn)}">
@@ -775,7 +1020,7 @@ function tilknyttedeKort(liste) {
   }
   const kontaktet = liste.filter((t) => t.ringt || t.status !== 'ny' || t.er_kunde);
   const varsel = kontaktet.length
-    ? `<div class="varsel-boks">⚠ ${kontaktet.length === 1 ? 'Ett tilknyttet selskap' : kontaktet.length + ' tilknyttede selskaper'} er allerede kontaktet eller er kunde. Sjekk før du ringer.</div>`
+    ? `<div class="varsel-boks">${ikon('varsel')} <span>${kontaktet.length === 1 ? 'Ett tilknyttet selskap' : kontaktet.length + ' tilknyttede selskaper'} er allerede kontaktet eller er kunde. Sjekk før du ringer.</span></div>`
     : '';
   return `<div class="kort">
     <h3>Tilknyttede selskaper (${liste.length})</h3>
@@ -809,21 +1054,29 @@ document.addEventListener('keydown', (e) => { if (e.key === 'Escape' && !$('#pan
 async function lastRevisorer() {
   const liste = await api('/api/revisorer');
   const totalt = liste.reduce((s, r) => s + r.antall, 0);
-  $('#revisor-rader').innerHTML = liste.map((r) => `
-    <tr data-orgnr="${esc(r.orgnr)}" data-navn="${esc(r.navn)}">
-      <td><span class="selskap-navn">${esc(r.navn)}</span>${r.orgnr === '988075167' ? ' <span class="merkelapp m-green">Oss</span>' : ''}</td>
+  const storst = Math.max(1, ...liste.map((r) => r.antall));
+  $('#revisor-rader').innerHTML = liste.map((r) => {
+    const andel = (r.antall / totalt) * 100;
+    const oss = r.orgnr === '988075167';
+    return `<tr data-orgnr="${esc(r.orgnr)}" data-navn="${esc(r.navn)}" class="${oss ? 'oss' : ''}">
+      <td><button class="lenke-knapp revisor-navn">${esc(penNavn(r.navn))}</button>${oss ? '<span class="oss-pille">Oss</span>' : ''}</td>
       <td class="tall">${nf.format(r.antall)}</td>
-      <td class="tall">${((r.antall / totalt) * 100).toLocaleString('nb-NO', { maximumFractionDigits: 1 })} %</td>
+      <td><div class="andel"><span class="andel-tall">${andel.toLocaleString('nb-NO', { maximumFractionDigits: 1 })} %</span>
+        <span class="andel-spor"><span class="andel-fyll" data-bredde="${(r.antall / storst) * 100}"></span></span></div></td>
       <td class="tall">${kr(r.inntekter)}</td>
       <td class="tall">${nf.format(r.ek_positiv || 0)}</td>
-    </tr>`).join('');
-  $$('#revisor-rader tr').forEach((tr) => tr.addEventListener('click', () => {
-    const f = $('#filter');
-    const sel = f.revisor;
-    [...sel.options].filter((o) => /^\d{9}$/.test(o.value)).forEach((o) => o.remove());
-    sel.add(new Option(tr.dataset.navn, tr.dataset.orgnr));
-    visListeMed({ revisor: tr.dataset.orgnr, kunder: tr.dataset.orgnr === '988075167' ? 'vis' : '', sorter: 'driftsinntekter' });
-  }));
+    </tr>`;
+  }).join('');
+  $$('#revisor-rader .andel-fyll').forEach((el) => { el.style.width = el.dataset.bredde + '%'; });
+  $$('#revisor-rader tr').forEach((tr) => tr.addEventListener('click', () => visRevisorKunder(tr.dataset.orgnr, tr.dataset.navn)));
+}
+
+// Viser selskapene til én revisor i Selskaper-listen.
+function visRevisorKunder(orgnr, navn) {
+  const sel = $('#filter').revisor;
+  [...sel.options].filter((o) => /^\d{9}$/.test(o.value)).forEach((o) => o.remove());
+  sel.add(new Option(penNavn(navn), orgnr));
+  visListeMed({ revisor: orgnr, kunder: orgnr === '988075167' ? 'vis' : '', sorter: 'driftsinntekter' });
 }
 
 start();

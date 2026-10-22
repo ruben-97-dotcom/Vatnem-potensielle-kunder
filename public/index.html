@@ -3,7 +3,11 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>Vatnem – potensielle kunder</title>
+  <title>Vatnem Toppturen – potensielle kunder</title>
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns=%27http://www.w3.org/2000/svg%27 viewBox=%270 0 36 36%27%3E%3Ccircle cx=%2724%27 cy=%2712%27 r=%277%27 fill=%27%23F28C38%27/%3E%3Cpath d=%27M2 32 14 12l6 9 4-5 10 16z%27 fill=%27%231A2B2B%27/%3E%3C/svg%3E">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap">
   <link rel="stylesheet" href="/style.css">
   <script src="/app.js" defer></script>
 </head>
@@ -11,78 +15,116 @@
   <!-- Innlogging -->
   <section id="innlogging" class="innlogging" hidden>
     <form id="innlogging-skjema" class="innlogging-kort" autocomplete="off">
-      <div class="merke"><span class="merke-v">V</span> Vatnem Revisjon</div>
+      <svg class="logo" width="36" height="36" viewBox="0 0 36 36" aria-hidden="true"><circle cx="24" cy="12" r="7" fill="#F28C38"/><path d="M2 32 14 12l6 9 4-5 10 16z" fill="#1A2B2B"/></svg>
       <h1>Potensielle kunder</h1>
       <p class="dempet">Skriv inn din 6-sifrede kode</p>
       <input id="kode" class="kode-felt" inputmode="numeric" pattern="\d{6}" maxlength="6" autocomplete="one-time-code" aria-label="6-sifret kode" required>
-      <button class="knapp primar bred" type="submit">Logg inn</button>
+      <button class="knapp primar bred hoy" type="submit">Logg inn</button>
       <p id="innlogging-feil" class="feil" role="alert"></p>
     </form>
+    <svg class="innlogging-fjell" viewBox="0 0 1200 320" preserveAspectRatio="none" aria-hidden="true">
+      <circle cx="1000" cy="70" r="60" fill="#F28C38"/>
+      <path d="M0 320V230l200-50 160 30 180-100 180 60 160-80 140 50 180-40v220z" fill="#E3B969"/>
+      <path d="M0 320v-36l130-26 150-36 160-44 150-36 140-36 160-36 140-34 80-18 60 18 30 20v264z" fill="#1E5A5A"/>
+      <path d="M1000 72l80-18 60 18-28 10-32-8-30 12-30-8z" fill="#FFFFFF"/>
+    </svg>
   </section>
 
   <!-- Portal -->
   <div id="portal" hidden>
-    <header class="topp">
-      <div class="merke"><span class="merke-v">V</span> Vatnem <span class="dempet">· Potensielle kunder</span></div>
-      <nav class="faner" role="tablist">
-        <button class="fane" data-fane="oversikt" role="tab">Oversikt</button>
-        <button class="fane" data-fane="selskaper" role="tab">Selskaper</button>
-        <button class="fane" data-fane="varsler" role="tab">Varsler <span id="varsel-teller" class="teller" hidden></span></button>
-        <button class="fane" data-fane="plikt" role="tab">Revisjonsplikt</button>
-        <button class="fane" data-fane="revisorer" role="tab">Revisormarkedet</button>
-      </nav>
-      <div class="bruker">
-        <span id="bruker-navn"></span>
-        <button id="logg-ut" class="knapp liten">Logg ut</button>
+    <div class="toppfelt">
+      <header class="topp">
+        <a class="merke" href="#oversikt" data-gaa="oversikt" aria-label="Vatnem Toppturen – oversikt">
+          <svg width="36" height="36" viewBox="0 0 36 36" aria-hidden="true"><circle cx="24" cy="12" r="7" fill="#F28C38"/><path d="M2 32 14 12l6 9 4-5 10 16z" fill="#1A2B2B"/></svg>
+          <span class="merke-navn">Vatnem</span> <span class="merke-under">Toppturen</span>
+        </a>
+        <nav class="faner" aria-label="Hovedmeny">
+          <button class="fane" data-fane="oversikt">Oversikt</button>
+          <button class="fane" data-fane="selskaper">Selskaper</button>
+          <button class="fane" data-fane="varsler">Varsler <span id="varsel-teller" class="teller" hidden></span></button>
+          <button class="fane" data-fane="plikt">Revisjonsplikt</button>
+          <button class="fane" data-fane="revisorer">Revisormarkedet</button>
+        </nav>
+        <div class="bruker">
+          <span class="dempet" id="hilsen">God morgen,</span> <strong id="bruker-navn"></strong>
+          <button id="logg-ut" class="tekstknapp">Logg ut</button>
+        </div>
+      </header>
+
+      <!-- Toppfelt med fjell (Oversikt) -->
+      <div id="hero-oversikt" class="hero hero-fjell" hidden>
+        <div class="hero-rad">
+          <div>
+            <div class="kicker">Ny dag, ny topp</div>
+            <h1 id="hero-tittel" class="hero-h1"></h1>
+          </div>
+          <div id="hero-brikker" class="hero-brikker"></div>
+        </div>
+        <div class="fjell">
+          <svg viewBox="0 0 1200 320" preserveAspectRatio="none" aria-hidden="true">
+            <circle cx="1000" cy="70" r="60" fill="#F28C38"/>
+            <path d="M0 320V230l200-50 160 30 180-100 180 60 160-80 140 50 180-40v220z" fill="#E3B969"/>
+            <path d="M0 320v-36l130-26 150-36 160-44 150-36 140-36 160-36 140-34 80-18 60 18 30 20v264z" fill="#1E5A5A"/>
+            <path d="M1000 72l80-18 60 18-28 10-32-8-30 12-30-8z" fill="#FFFFFF"/>
+            <path d="M60 287 264 236 480 190 696 140 900 98 1080 52" fill="none" stroke="#FFFFFF" stroke-width="3" stroke-dasharray="2 10" stroke-linecap="round"/>
+            <path d="M0 320v-10h1200v10z" fill="#FBF7EC"/>
+          </svg>
+          <div id="fjell-merker" class="fjell-merker"></div>
+        </div>
+        <ul id="etappe-liste" class="etappe-liste" aria-label="Salgstrakt"></ul>
       </div>
-    </header>
+
+      <!-- Enkelt toppfelt (andre sider) -->
+      <div id="hero-side" class="hero hero-enkel" hidden>
+        <h1 id="side-tittel" class="side-h1"></h1>
+        <p id="side-ingress" class="dempet side-ingress"></p>
+      </div>
+    </div>
 
     <main>
       <!-- Oversikt -->
       <section id="fane-oversikt" class="fane-innhold" hidden>
-        <div id="kpi" class="kpi-rad"></div>
-        <div class="to-kol">
+        <p id="snudde" class="snudde dempet"></p>
+        <div class="kolonner">
+          <div class="kort stort neste-steg" id="neste-steg"></div>
+          <div class="hoyre-kol">
+            <div class="kort">
+              <h2>Dagens rute</h2>
+              <ul id="dagens-rute" class="rute-liste"></ul>
+            </div>
+            <div class="kort mork" id="foremelding"></div>
+            <div class="snarveier" aria-label="Snarveier">
+              <button class="pille-knapp" data-snarvei="ringeliste">Ringeliste: beste uringte</button>
+              <button class="pille-knapp" data-snarvei="mine-forfalte">Mine forfalte oppfølginger</button>
+              <button class="pille-knapp" data-snarvei="plikt-uten">Revisjonspliktige uten revisor</button>
+              <button class="pille-knapp" data-snarvei="har-revisor">Har revisor i dag (byttekandidater)</button>
+              <button class="pille-knapp" data-snarvei="prioritert">Prioriterte</button>
+              <button class="pille-knapp" data-snarvei="kunder">Eksisterende Vatnem-kunder</button>
+              <button class="pille-knapp" data-snarvei="nye30">Nye selskaper siste 30 dager <span id="antall-nye" class="pille-tall"></span></button>
+              <button class="pille-knapp" data-gaa="plikt">Nær eller over revisjonsplikt <span id="antall-plikt" class="pille-tall"></span></button>
+            </div>
+          </div>
+        </div>
+        <div class="kolonner">
           <div class="kort">
-            <h2>Salgstrakt</h2>
-            <div id="trakt"></div>
+            <h2>Siste varsler <button class="tekstknapp liten-lenke" data-gaa="varsler">Se alle</button></h2>
+            <ul id="siste-varsler" class="aktivitet-liste"></ul>
           </div>
           <div class="kort">
             <h2>Siste aktivitet</h2>
             <ul id="siste-aktivitet" class="aktivitet-liste"></ul>
           </div>
         </div>
-        <div class="kort">
-          <h2>Snarveier</h2>
-          <div class="snarveier">
-            <button class="knapp" data-snarvei="ringeliste">Ringeliste: beste uringte</button>
-            <button class="knapp" data-snarvei="mine-forfalte">Mine forfalte oppfølginger</button>
-            <button class="knapp" data-snarvei="plikt-uten">Revisjonspliktige uten revisor</button>
-            <button class="knapp" data-snarvei="har-revisor">Har revisor i dag (byttekandidater)</button>
-            <button class="knapp" data-snarvei="prioritert">Prioriterte ★</button>
-            <button class="knapp" data-snarvei="kunder">Eksisterende Vatnem-kunder</button>
-          </div>
-        </div>
-        <div class="to-kol">
-          <div class="kort">
-            <h2>Siste varsler <button class="lenke-knapp liten-lenke" data-gaa="varsler">Se alle →</button></h2>
-            <ul id="siste-varsler" class="aktivitet-liste"></ul>
-          </div>
-          <div class="kort">
-            <h2>Data fra Brønnøysundregistrene</h2>
-            <p id="synk-info" class="dempet"></p>
-            <div class="snarveier">
-              <button id="synk-knapp" class="knapp liten">Sjekk for endringer nå</button>
-              <button id="synk-full-knapp" class="knapp liten">Full oppdatering (ca. 2 min)</button>
-            </div>
-          </div>
+        <div class="data-linje">
+          <span id="synk-info" class="dempet"></span>
+          <button id="synk-knapp" class="knapp sekundar liten">Oppdater fra Brønnøysundregistrene</button>
+          <button id="synk-full-knapp" class="tekstknapp">Full oppdatering</button>
         </div>
       </section>
 
       <!-- Varsler -->
       <section id="fane-varsler" class="fane-innhold" hidden>
         <div class="kort">
-          <h2>Varsler fra Brønnøysundregistrene</h2>
-          <p class="dempet">Portalen sjekker Brreg jevnlig og varsler når selskaper i området bytter eller mister revisor eller regnskapsfører, når nye selskaper registreres, og når et selskap uten revisor passerer grensen for revisjonsplikt.</p>
           <div class="chips" id="varsel-filter">
             <button class="chip aktiv" data-type="">Alle</button>
             <button class="chip" data-type="revisor_fratradt">Revisor har gått av</button>
@@ -118,7 +160,6 @@
       <!-- Revisjonsplikt -->
       <section id="fane-plikt" class="fane-innhold" hidden>
         <div class="kort">
-          <h2>Selskaper uten revisor som er over eller nær grensen for revisjonsplikt</h2>
           <p class="dempet" id="plikt-forklaring"></p>
           <div class="chips" id="plikt-filter">
             <button class="chip aktiv" data-plikt="alle">Alle</button>
@@ -152,8 +193,8 @@
 
       <!-- Selskaper -->
       <section id="fane-selskaper" class="fane-innhold" hidden>
-        <form id="filter" class="filter">
-          <input name="sok" type="search" placeholder="Søk navn, orgnr, daglig leder, styreleder…" class="sok">
+        <form id="filter" class="filter kort">
+          <input name="sok" type="search" placeholder="Søk navn, orgnr, daglig leder, styreleder…" class="sok" aria-label="Søk">
           <select name="kommune" aria-label="Kommune"><option value="">Alle kommuner</option></select>
           <select name="status" aria-label="Status"><option value="">Alle statuser</option></select>
           <select name="ringt" aria-label="Ringt">
@@ -195,7 +236,7 @@
             <option value="forfalt">Oppfølging i dag/forfalt</option>
             <option value="planlagt">Har oppfølgingsdato</option>
           </select>
-          <input name="bransje" type="search" placeholder="Bransje (f.eks. bygg, 41.)" class="bransje">
+          <input name="bransje" type="search" placeholder="Bransje (f.eks. bygg, 41.)" class="bransje" aria-label="Bransje">
           <select name="kunder" aria-label="Eksisterende kunder">
             <option value="">Skjul Vatnem-kunder</option>
             <option value="vis">Vis Vatnem-kunder</option>
@@ -213,8 +254,8 @@
           </select>
           <input type="hidden" name="prioritet">
           <div class="filter-handlinger">
-            <button type="button" id="nullstill" class="knapp liten">Nullstill</button>
-            <button type="button" id="eksport" class="knapp liten">Eksporter CSV</button>
+            <button type="button" id="nullstill" class="tekstknapp">Nullstill</button>
+            <button type="button" id="eksport" class="knapp sekundar">Eksporter CSV</button>
           </div>
         </form>
         <div class="liste-topp">
@@ -225,13 +266,13 @@
           <table class="tabell">
             <thead>
               <tr>
-                <th class="smal" title="Prioritert">★</th>
+                <th class="smal" title="Prioritert"><span class="sr">Prioritert</span><svg class="ikon" viewBox="0 0 24 24" aria-hidden="true"><path d="m12 3 2.7 5.6 6.1.9-4.4 4.3 1 6.1L12 17l-5.4 2.9 1-6.1-4.4-4.3 6.1-.9z"/></svg></th>
                 <th data-sorter="navn">Selskap</th>
                 <th data-sorter="kommune">Kommune</th>
                 <th>Daglig leder / styreleder</th>
                 <th data-sorter="revisor">Revisor i dag</th>
                 <th data-sorter="regnskapsforer">Regnskapsfører</th>
-                <th data-sorter="driftsinntekter" class="tall" id="inntekt-kolonne" title="Driftsinntekter siste regnskapsår">Inntekt</th>
+                <th data-sorter="driftsinntekter" class="tall" title="Driftsinntekter siste regnskapsår">Inntekt</th>
                 <th data-sorter="egenkapital" class="tall">Egenkapital</th>
                 <th data-sorter="eiendeler" class="tall">Eiendeler</th>
                 <th data-sorter="gjeld" class="tall">Gjeld</th>
@@ -248,15 +289,11 @@
 
       <!-- Revisorer -->
       <section id="fane-revisorer" class="fane-innhold" hidden>
-        <div class="kort">
-          <h2>Hvem reviderer selskapene i regionen?</h2>
-          <p class="dempet">Klikk en revisor for å se kundene deres. Selskaper som bytter revisor kommer ofte fra de store kjedene.</p>
-          <div class="tabell-ramme">
-            <table class="tabell">
-              <thead><tr><th>Revisor</th><th class="tall">Selskaper</th><th class="tall">Andel</th><th class="tall">Sum driftsinntekter</th><th class="tall">Med positiv EK</th></tr></thead>
-              <tbody id="revisor-rader"></tbody>
-            </table>
-          </div>
+        <div class="tabell-ramme">
+          <table class="tabell">
+            <thead><tr><th>Revisor</th><th class="tall">Selskaper</th><th>Andel</th><th class="tall">Sum driftsinntekter</th><th class="tall">Med positiv EK</th></tr></thead>
+            <tbody id="revisor-rader"></tbody>
+          </table>
         </div>
       </section>
     </main>
