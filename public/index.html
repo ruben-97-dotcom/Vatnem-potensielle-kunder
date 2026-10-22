@@ -118,6 +118,10 @@
             <option value="vis">Vis Vatnem-kunder</option>
             <option value="kun">Kun Vatnem-kunder</option>
           </select>
+          <select name="tilknyttet" aria-label="Tilknyttede selskaper">
+            <option value="">Alle (tilknyttede)</option>
+            <option value="ukontaktet">Skjul hvis tilknyttet selskap er kontaktet</option>
+          </select>
           <input type="hidden" name="prioritet">
           <div class="filter-handlinger">
             <button type="button" id="nullstill" class="knapp liten">Nullstill</button>
@@ -135,11 +139,13 @@
                 <th class="smal" title="Prioritert">★</th>
                 <th data-sorter="navn">Selskap</th>
                 <th data-sorter="kommune">Kommune</th>
-                <th>Daglig leder</th>
-                <th>Styreleder</th>
+                <th>Daglig leder / styreleder</th>
                 <th data-sorter="revisor">Revisor i dag</th>
-                <th data-sorter="driftsinntekter" class="tall">Driftsinnt.</th>
+                <th data-sorter="regnskapsforer">Regnskapsfører</th>
+                <th data-sorter="driftsinntekter" class="tall" id="inntekt-kolonne" title="Driftsinntekter siste regnskapsår">Inntekt</th>
                 <th data-sorter="egenkapital" class="tall">Egenkapital</th>
+                <th data-sorter="eiendeler" class="tall">Eiendeler</th>
+                <th data-sorter="gjeld" class="tall">Gjeld</th>
                 <th data-sorter="ansatte" class="tall">Ansatte</th>
                 <th data-sorter="status">Status</th>
                 <th class="smal">Ringt</th>

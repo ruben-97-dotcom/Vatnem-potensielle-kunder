@@ -62,6 +62,68 @@ const STATUSKODER = new Set(STATUSER.map((s) => s.kode));
 // Dagens dato i norsk tid (serveren kan stå i UTC).
 const iDag = () => new Date().toLocaleDateString('sv-SE', { timeZone: 'Europe/Oslo' });
 
+// --- Tilknyttede selskaper ---------------------------------------------------
+// To selskaper er tilknyttet når samme person (navn + fødselsdato) har en rolle i begge.
+const TILKNYTTET_KONTAKTET = `SELECT 1 FROM personroller p1
+  JOIN personroller p2 ON p2.person_nokkel = p1.person_nokkel AND p2.orgnr != p1.orgnr
+  JOIN selskaper s2 ON s2.orgnr = p2.orgnr AND s2.aktiv = 1
+  LEFT JOIN oppfolging o2 ON o2.orgnr = p2.orgnr`;
+const ER_KONTAKTET = `(o2.ringt = 1 OR o2.status != 'ny' OR s2.revisor_orgnr = '${VATNEM_ORGNR}')`;
+
+const ROLLENAVN = {
+  DAGL: 'daglig leder', LEDE: 'styreleder', NEST: 'nestleder', MEDL: 'styremedlem', KONT: 'kontaktperson',
+  INNH: 'innehaver', DTPR: 'deltaker', DTSO: 'deltaker', KOMP: 'komplementar', BEST: 'bestyrende reder',
+};
+
+// Antall tilknyttede selskaper og hvor mange av dem som allerede er kontaktet, for en liste orgnr.
+function tilknytningForListe(orgnre) {
+  if (!orgnre.length) return {};
+  const plass = orgnre.map(() => '?').join(',');
+  const rader = db.prepare(`SELECT p1.orgnr,
+      COUNT(DISTINCT p2.orgnr) AS antall,
+      COUNT(DISTINCT CASE WHEN ${ER_KONTAKTET} THEN p2.orgnr END) AS kontaktet
+    FROM personroller p1
+    JOIN personroller p2 ON p2.person_nokkel = p1.person_nokkel AND p2.orgnr != p1.orgnr
+    JOIN selskaper s2 ON s2.orgnr = p2.orgnr AND s2.aktiv = 1
+    LEFT JOIN oppfolging o2 ON o2.orgnr = p2.orgnr
+    WHERE p1.orgnr IN (${plass}) GROUP BY p1.orgnr`).all(...orgnre);
+  return Object.fromEntries(rader.map((r) => [r.orgnr, r]));
+}
+
+function tilknyttedeSelskaper(orgnr) {
+  const rader = db.prepare(`SELECT v.orgnr, v.navn, v.kommune, v.status, v.ringt, v.sist_kontaktet, v.er_kunde,
+      v.revisor_navn, v.driftsinntekter, b.navn AS ansvarlig, p1.navn AS person, p1.rolle AS rolle_her, p2.rolle AS rolle_der
+    FROM personroller p1
+    JOIN personroller p2 ON p2.person_nokkel = p1.person_nokkel AND p2.orgnr != p1.orgnr
+    JOIN v_selskaper v ON v.orgnr = p2.orgnr AND v.aktiv = 1
+    LEFT JOIN brukere b ON b.id = v.ansvarlig_id
+    WHERE p1.orgnr = ?
+    ORDER BY v.navn`).all(orgnr);
+  const LEDENDE = new Set(['DAGL', 'LEDE', 'INNH', 'KOMP']);
+  const perSelskap = new Map();
+  for (const r of rader) {
+    if (!perSelskap.has(r.orgnr)) {
+      const { person, rolle_her, rolle_der, ...s } = r;
+      perSelskap.set(r.orgnr, { ...s, personer: new Map(), sterk: false });
+    }
+    const sel = perSelskap.get(r.orgnr);
+    if (!sel.personer.has(r.person)) sel.personer.set(r.person, { her: new Set(), der: new Set() });
+    sel.personer.get(r.person).her.add(r.rolle_her);
+    sel.personer.get(r.person).der.add(r.rolle_der);
+    if (LEDENDE.has(r.rolle_her) || LEDENDE.has(r.rolle_der)) sel.sterk = true;
+  }
+  const rolleListe = (sett) => [...sett].map((k) => ROLLENAVN[k] || k).join(' og ');
+  const liste = [...perSelskap.values()].map(({ personer, ...s }) => ({
+    ...s,
+    antallPersoner: personer.size,
+    koblinger: [...personer].map(([navn, p]) => `${navn} (${rolleListe(p.her)} her, ${rolleListe(p.der)} der)`),
+  }));
+  // Kontaktede og eksisterende kunder først, deretter de sterkeste koblingene.
+  const kontaktet = (s) => Number(Boolean(s.ringt || s.status !== 'ny' || s.er_kunde));
+  return liste.sort((a, b) => kontaktet(b) - kontaktet(a) || Number(b.sterk) - Number(a.sterk) ||
+    b.antallPersoner - a.antallPersoner || a.navn.localeCompare(b.navn, 'nb'));
+}
+
 // --- Filtrering ------------------------------------------------------------
 function byggFilter(q, bruker) {
   const where = ['aktiv = 1'];
@@ -97,6 +159,7 @@ function byggFilter(q, bruker) {
   if (q.oppfolging === 'forfalt') { where.push('oppfolging_dato <= :idag'); p.idag = iDag(); }
   if (q.oppfolging === 'planlagt') where.push('oppfolging_dato IS NOT NULL');
   if (q.prioritet === '1') where.push('prioritet = 1');
+  if (q.tilknyttet === 'ukontaktet') where.push(`NOT EXISTS (${TILKNYTTET_KONTAKTET} WHERE p1.orgnr = v_selskaper.orgnr AND ${ER_KONTAKTET})`);
   if (q.kunder !== 'vis') where.push('er_kunde = 0');
   if (q.kunder === 'kun') where.push('er_kunde = 1');
   return { sql: where.join(' AND '), p };
@@ -104,12 +167,12 @@ function byggFilter(q, bruker) {
 
 const SORTERING = {
   poeng: 'poeng', navn: 'navn', kommune: 'kommune', driftsinntekter: 'driftsinntekter', egenkapital: 'egenkapital',
-  aarsresultat: 'aarsresultat', ansatte: 'ansatte', status: 'status', oppfolging: 'oppfolging_dato',
-  kontaktet: 'sist_kontaktet', revisor: 'revisor_navn',
+  aarsresultat: 'aarsresultat', ansatte: 'ansatte', eiendeler: 'sum_eiendeler', gjeld: 'sum_gjeld', status: 'status', oppfolging: 'oppfolging_dato',
+  kontaktet: 'sist_kontaktet', revisor: 'revisor_navn', regnskapsforer: 'regnskapsforer_navn',
 };
 
 const LISTEFELT = `orgnr, navn, orgform, kommune, nace_tekst, ansatte, daglig_leder, styreleder, revisor_navn, revisor_orgnr,
-  regnskapsforer_navn, regnskap_aar, driftsinntekter, aarsresultat, egenkapital, fravalg_revisjon, revisjonspliktig, er_kunde,
+  regnskapsforer_navn, regnskap_aar, driftsinntekter, aarsresultat, egenkapital, sum_eiendeler, sum_gjeld, fravalg_revisjon, revisjonspliktig, er_kunde,
   status, ringt, sist_kontaktet, oppfolging_dato, ansvarlig_id, prioritet, poeng, telefon, mobil`;
 
 app.get('/api/selskaper', (req, res) => {
@@ -121,6 +184,11 @@ app.get('/api/selskaper', (req, res) => {
   const totalt = db.prepare(`SELECT COUNT(*) n FROM v_selskaper WHERE ${sql}`).get(p).n;
   const rader = db.prepare(`SELECT ${LISTEFELT} FROM v_selskaper WHERE ${sql}
     ORDER BY (${kol} IS NULL), ${kol} ${retning}, navn ASC LIMIT ${perSide} OFFSET ${side * perSide}`).all(p);
+  const tilknytning = tilknytningForListe(rader.map((r) => r.orgnr));
+  for (const r of rader) {
+    r.tilknyttede = tilknytning[r.orgnr]?.antall || 0;
+    r.tilknyttede_kontaktet = tilknytning[r.orgnr]?.kontaktet || 0;
+  }
   res.json({ totalt, side, perSide, rader });
 });
 
@@ -139,7 +207,7 @@ app.get('/api/eksport.csv', (req, res) => {
     ['Orgnr', 'orgnr'], ['Selskap', 'navn'], ['Form', 'orgform'], ['Kommune', 'kommune'], ['Bransje', 'nace_tekst'],
     ['Ansatte', 'ansatte'], ['Daglig leder', 'daglig_leder'], ['Styreleder', 'styreleder'], ['Revisor', 'revisor_navn'],
     ['Regnskapsfører', 'regnskapsforer_navn'], ['Regnskapsår', 'regnskap_aar'], ['Driftsinntekter', 'driftsinntekter'],
-    ['Årsresultat', 'aarsresultat'], ['Egenkapital', 'egenkapital'], ['Sum eiendeler', 'sum_eiendeler'],
+    ['Årsresultat', 'aarsresultat'], ['Egenkapital', 'egenkapital'], ['Sum eiendeler', 'sum_eiendeler'], ['Sum gjeld', 'sum_gjeld'],
     ['Fravalgt revisjon', 'fravalg_revisjon'], ['Telefon', 'telefon'], ['Mobil', 'mobil'], ['E-post', 'epost'],
     ['Hjemmeside', 'hjemmeside'], ['Adresse', 'adresse'], ['Postnr', 'postnr'], ['Poststed', 'poststed'],
     ['Status', (r) => statusNavn[r.status]], ['Ringt', (r) => (r.ringt ? 'Ja' : 'Nei')], ['Sist kontaktet', 'sist_kontaktet'],
@@ -158,7 +226,7 @@ app.get('/api/selskaper/:orgnr', (req, res) => {
   if (!s) return res.status(404).json({ feil: 'Fant ikke selskapet' });
   const aktiviteter = db.prepare(`SELECT a.*, b.navn AS bruker FROM aktiviteter a LEFT JOIN brukere b ON b.id = a.bruker_id
     WHERE a.orgnr = ? ORDER BY a.opprettet DESC`).all(req.params.orgnr);
-  res.json({ ...s, aktiviteter });
+  res.json({ ...s, aktiviteter, tilknyttede: tilknyttedeSelskaper(req.params.orgnr) });
 });
 
 const leggTilAktivitet = db.prepare('INSERT INTO aktiviteter (orgnr, bruker_id, type, tekst, opprettet) VALUES (?, ?, ?, ?, ?)');
@@ -287,6 +355,7 @@ app.get('/api/meta', (req, res) => {
     statuser: STATUSER,
     brukere: db.prepare('SELECT id, navn FROM brukere ORDER BY navn').all(),
     revisjonsplikt: REVISJONSPLIKT,
+    sisteRegnskapsaar: db.prepare('SELECT MAX(regnskap_aar) aar FROM selskaper WHERE aktiv = 1').get().aar,
     synk: { ...brreg.status, siste: sisteSynk },
   });
 });

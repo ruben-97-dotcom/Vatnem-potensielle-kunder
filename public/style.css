@@ -161,7 +161,14 @@ input[type="checkbox"] { width: 17px; height: 17px; cursor: pointer; accent-colo
 .felt input, .felt select { font-size: 14px; color: var(--tekst); }
 .felt.hel { grid-column: 1 / -1; }
 .bryter { display: flex; align-items: center; gap: 8px; font-size: 14px; color: var(--tekst); cursor: pointer; }
-.nokkeltall { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; }
+.nokkeltall { display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; }
+.liten-merke { margin-top: 3px; font-size: 11px; padding: 1px 6px; }
+.varsel-boks { background: var(--gul-bg); color: var(--gul); border-radius: 8px; padding: 10px 12px; margin-bottom: 10px; font-weight: 500; }
+.tilknyttet-liste { list-style: none; padding: 0; margin: 0; }
+.tilknyttet-liste li { padding: 9px 0; border-top: 1px solid var(--linje); }
+.tilknyttet-liste li:first-child { border-top: 0; }
+.tilknyttet-topp { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
+.tilknyttet-liste .under { white-space: normal; max-width: none; }
 .nokkel { background: var(--flate-2); border-radius: 8px; padding: 10px; }
 .nokkel-tall { font-size: 16px; font-weight: 600; font-variant-numeric: tabular-nums; }
 .nokkel-tekst { font-size: 12px; color: var(--dempet); }

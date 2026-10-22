@@ -10,8 +10,20 @@ eller under avvikling er utelatt. For hvert selskap hentes:
 
 - Navn, orgnr, bransje, adresse, antall ansatte, telefon, e-post og hjemmeside (når de er registrert)
 - Daglig leder, styreleder, **revisor i dag** og regnskapsfører
-- Siste årsregnskap: driftsinntekter, driftsresultat, årsresultat, **egenkapital**, sum eiendeler, og om
-  revisjon er valgt bort
+- Siste årsregnskap: driftsinntekter, driftsresultat, årsresultat, **egenkapital**, sum eiendeler, sum gjeld,
+  og om revisjon er valgt bort
+- Alle personer i ledelse og styre, brukt til å finne **tilknyttede selskaper**
+
+### Tilknyttede selskaper
+
+To selskaper regnes som tilknyttet når samme person er daglig leder, styreleder, styremedlem, nestleder,
+kontaktperson eller deltaker i begge. Personer matches på navn og fødselsdato, slik at navnebrødre ikke blandes.
+Fødselsdatoen lagres ikke, bare en anonym nøkkel. Detaljvisningen viser alle tilknyttede selskaper i regionen,
+med status og hvem som eier dem, og varsler hvis ett av dem allerede er kontaktet eller er kunde. I listen er slike
+selskaper merket med ⚠, og ringelisten skjuler dem automatisk.
+
+Eierskap (aksjonærregisteret) finnes ikke i de åpne API-ene. Et holdingselskap uten felles person i styret blir
+derfor ikke fanget opp.
 
 Selskaper som allerede har Vatnem Revisjon som revisor er merket som eksisterende kunder og skjult som standard.
 Dataene oppdateres automatisk hver uke, eller med knappen på oversiktssiden. Oppdateringen tar rundt 2 minutter og

@@ -100,4 +100,21 @@ db.exec(`
   );
 `);
 
+// Nye kolonner i eksisterende databaser.
+const kolonner = new Set(db.prepare('PRAGMA table_info(selskaper)').all().map((k) => k.name));
+if (!kolonner.has('sum_gjeld')) db.exec('ALTER TABLE selskaper ADD COLUMN sum_gjeld REAL');
+
+// Personer med roller i selskapene, brukt til å finne tilknyttede selskaper.
+// person_nokkel er en hash av navn og fødselsdato, så fødselsdato lagres ikke.
+db.exec(`
+  CREATE TABLE IF NOT EXISTS personroller (
+    orgnr TEXT NOT NULL,
+    rolle TEXT NOT NULL,
+    navn TEXT NOT NULL,
+    person_nokkel TEXT NOT NULL
+  );
+  CREATE INDEX IF NOT EXISTS idx_personroller_orgnr ON personroller(orgnr);
+  CREATE INDEX IF NOT EXISTS idx_personroller_nokkel ON personroller(person_nokkel, orgnr);
+`);
+
 module.exports = db;

@@ -1,4 +1,5 @@
 // Henter selskaper, roller og årsregnskap fra Brønnøysundregistrenes åpne API-er.
+const crypto = require('node:crypto');
 const db = require('./db');
 const { KOMMUNER, ORGANISASJONSFORMER } = require('./config');
 
@@ -35,6 +36,35 @@ function rolleNavn(r) {
   if (r.person) return personNavn(r.person);
   if (r.enhet) return (r.enhet.navn || []).join(' ');
   return null;
+}
+
+// Roller som knytter selskaper sammen via samme person (ikke revisor/regnskapsfører).
+const KOBLENDE_ROLLER = new Set(['DAGL', 'LEDE', 'NEST', 'MEDL', 'KONT', 'INNH', 'DTPR', 'DTSO', 'KOMP', 'BEST']);
+
+function personNokkel(r) {
+  if (r.person) {
+    const navn = (personNavn(r.person) || '').toLowerCase();
+    return crypto.createHash('sha256').update(`${navn}|${r.person.fodselsdato || ''}`).digest('hex').slice(0, 24);
+  }
+  if (r.enhet?.organisasjonsnummer) return 'org:' + r.enhet.organisasjonsnummer;
+  return null;
+}
+
+function tolkPersonroller(data) {
+  const ut = [];
+  const sett = new Set();
+  for (const gruppe of data?.rollegrupper || []) {
+    for (const r of gruppe.roller || []) {
+      const kode = r.type?.kode;
+      if (r.avregistrert || r.fratraadt || r.person?.erDoed || !KOBLENDE_ROLLER.has(kode)) continue;
+      const nokkel = personNokkel(r);
+      const navn = rolleNavn(r);
+      if (!nokkel || !navn || sett.has(nokkel + kode)) continue;
+      sett.add(nokkel + kode);
+      ut.push({ rolle: kode, navn, person_nokkel: nokkel });
+    }
+  }
+  return ut;
 }
 
 function tolkRoller(data) {
@@ -76,6 +106,7 @@ function tolkRegnskap(liste) {
     aarsresultat: tall(res.aarsresultat),
     egenkapital: tall(r.egenkapitalGjeld?.egenkapital?.sumEgenkapital),
     sum_eiendeler: tall(r.eiendeler?.sumEiendeler),
+    sum_gjeld: tall(r.egenkapitalGjeld?.gjeldOversikt?.sumGjeld),
     fravalg_revisjon: r.revisjon?.fravalgRevisjon ? 1 : 0,
   };
 }
@@ -100,9 +131,12 @@ const lagreRoller = db.prepare(`
 
 const lagreRegnskap = db.prepare(`
   UPDATE selskaper SET regnskap_aar=:regnskap_aar, driftsinntekter=:driftsinntekter, driftsresultat=:driftsresultat,
-    aarsresultat=:aarsresultat, egenkapital=:egenkapital, sum_eiendeler=:sum_eiendeler,
+    aarsresultat=:aarsresultat, egenkapital=:egenkapital, sum_eiendeler=:sum_eiendeler, sum_gjeld=:sum_gjeld,
     fravalg_revisjon=:fravalg_revisjon, regnskap_hentet=1 WHERE orgnr=:orgnr
 `);
+
+const slettPersonroller = db.prepare('DELETE FROM personroller WHERE orgnr = ?');
+const lagrePersonrolle = db.prepare('INSERT INTO personroller (orgnr, rolle, navn, person_nokkel) VALUES (:orgnr, :rolle, :navn, :person_nokkel)');
 
 function enhetTilRad(e, naa) {
   const a = e.forretningsadresse || e.postadresse || {};
@@ -190,6 +224,13 @@ async function synkroniser({ logg = () => {} } = {}) {
         hentJson(`${REGNSKAP_URL}/${orgnr}`),
       ]);
       lagreRoller.run({ orgnr, ...tolkRoller(roller) });
+      if (roller) {
+        const personer = tolkPersonroller(roller);
+        db.exec('BEGIN');
+        slettPersonroller.run(orgnr);
+        for (const p of personer) lagrePersonrolle.run({ orgnr, ...p });
+        db.exec('COMMIT');
+      }
       const r = tolkRegnskap(regnskap);
       if (r) lagreRegnskap.run({ orgnr, ...r });
       if (status.ferdig % 500 === 0) logg(`${status.ferdig}/${status.totalt}`);

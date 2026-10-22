@@ -201,7 +201,7 @@ $('#synk-knapp').addEventListener('click', async () => {
 });
 
 const SNARVEIER = {
-  'ringeliste': { ringt: 'nei', ek: 'positiv', status: 'ny', sorter: 'poeng' },
+  'ringeliste': { ringt: 'nei', ek: 'positiv', status: 'ny', tilknyttet: 'ukontaktet', sorter: 'poeng' },
   'mine-forfalte': { ansvarlig: 'meg', oppfolging: 'forfalt', sorter: 'oppfolging', retning: 'asc' },
   'plikt-uten': { revisor: 'plikt_uten', sorter: 'driftsinntekter' },
   'har-revisor': { revisor: 'har', ek: 'positiv', sorter: 'poeng' },
@@ -278,10 +278,18 @@ $('#eksport').addEventListener('click', () => {
 $$('th[data-sorter]').forEach((th) => th.addEventListener('click', () => {
   const k = th.dataset.sorter;
   if (tilstand.sorter === k) tilstand.retning = tilstand.retning === 'desc' ? 'asc' : 'desc';
-  else { tilstand.sorter = k; tilstand.retning = ['navn', 'kommune', 'revisor', 'status', 'oppfolging'].includes(k) ? 'asc' : 'desc'; }
+  else { tilstand.sorter = k; tilstand.retning = ['navn', 'kommune', 'revisor', 'regnskapsforer', 'status', 'oppfolging'].includes(k) ? 'asc' : 'desc'; }
   tilstand.side = 0;
   lagreFilter(); lastListe();
 }));
+
+function tilknytningMerke(r) {
+  if (!r.tilknyttede) return '';
+  if (r.tilknyttede_kontaktet) {
+    return `<span class="merkelapp m-amber liten-merke" title="Et selskap med samme person i ledelsen/styret er allerede kontaktet eller er kunde">⚠ ${r.tilknyttede_kontaktet} tilknyttet kontaktet</span>`;
+  }
+  return `<span class="merkelapp m-gray liten-merke" title="Selskaper med samme person i ledelsen/styret">🔗 ${r.tilknyttede} tilknyttede</span>`;
+}
 
 let listeForesporsel = 0;
 async function lastListe() {
@@ -306,18 +314,20 @@ async function lastListe() {
   $('#rader').innerHTML = data.rader.length ? data.rader.map((r) => `
     <tr data-orgnr="${r.orgnr}" class="${r.ringt ? 'er-ringt' : ''}">
       <td class="smal"><button class="stjerne ${r.prioritet ? 'pa' : ''}" data-handling="prioritet" title="Prioriter" aria-label="Prioriter">★</button></td>
-      <td><div class="selskap-navn">${esc(r.navn)}</div><div class="under">${esc(r.orgnr)} · ${esc(r.orgform)}${r.nace_tekst ? ' · ' + esc(r.nace_tekst) : ''}</div></td>
+      <td><div class="selskap-navn">${esc(r.navn)}</div><div class="under">${esc(r.orgnr)} · ${esc(r.orgform)}${r.nace_tekst ? ' · ' + esc(r.nace_tekst) : ''}</div>${tilknytningMerke(r)}</td>
       <td>${esc(r.kommune)}</td>
-      <td class="celle-person">${esc(r.daglig_leder) || '<span class="tom">–</span>'}</td>
-      <td class="celle-person">${esc(r.styreleder) || '<span class="tom">–</span>'}</td>
+      <td class="celle-person"><div>${esc(r.daglig_leder) || '<span class="tom">–</span>'}</div><div class="under">${r.styreleder ? 'Styreleder: ' + esc(r.styreleder) : ''}</div></td>
       <td class="celle-person">${r.revisor_navn ? esc(r.revisor_navn) : r.fravalg_revisjon ? '<span class="dempet">Valgt bort</span>' : r.revisjonspliktig ? '<span class="merkelapp m-amber">Ingen – pliktig?</span>' : '<span class="tom">Ingen</span>'}</td>
-      <td class="tall">${kr(r.driftsinntekter)}</td>
+      <td class="celle-person" title="${esc(r.regnskapsforer_navn || '')}">${esc(r.regnskapsforer_navn) || '<span class="tom">Ingen registrert</span>'}</td>
+      <td class="tall">${kr(r.driftsinntekter)}${r.regnskap_aar && r.regnskap_aar !== tilstand.meta.sisteRegnskapsaar ? `<div class="under">${r.regnskap_aar}</div>` : ''}</td>
       <td class="tall">${ekCelle(r.egenkapital)}</td>
+      <td class="tall">${kr(r.sum_eiendeler)}</td>
+      <td class="tall">${kr(r.sum_gjeld)}</td>
       <td class="tall">${r.ansatte ?? '<span class="tom">–</span>'}</td>
       <td><select class="status-velger" data-handling="status" aria-label="Status">${statusValg}</select></td>
       <td class="smal"><input type="checkbox" data-handling="ringt" ${r.ringt ? 'checked' : ''} aria-label="Ringt"></td>
       <td class="tall"><span class="poeng ${r.poeng >= 70 ? 'hoy' : r.poeng >= 45 ? 'mid' : ''}">${r.poeng}</span></td>
-    </tr>`).join('') : '<tr><td colspan="12" class="tom-liste">Ingen selskaper passer filteret.</td></tr>';
+    </tr>`).join('') : '<tr><td colspan="14" class="tom-liste">Ingen selskaper passer filteret.</td></tr>';
 
   for (const tr of $$('#rader tr[data-orgnr]')) {
     const r = data.rader.find((x) => x.orgnr === tr.dataset.orgnr);
@@ -395,6 +405,7 @@ async function apnePanel(orgnr) {
       <div class="merknader">${merknader}</div>
     </div>
     <div class="panel-innhold">
+      ${tilknyttedeKort(s.tilknyttede)}
       <div class="kort">
         <h3>Oppfølging</h3>
         <form id="oppfolging-skjema" class="felt-rutenett">
@@ -430,8 +441,10 @@ async function apnePanel(orgnr) {
           <div class="nokkel"><div class="nokkel-tall">${kr(s.driftsresultat)}</div><div class="nokkel-tekst">Driftsresultat</div></div>
           <div class="nokkel"><div class="nokkel-tall">${kr(s.aarsresultat)}</div><div class="nokkel-tekst">Årsresultat</div></div>
           <div class="nokkel"><div class="nokkel-tall">${ekCelle(s.egenkapital)}</div><div class="nokkel-tekst">Egenkapital</div></div>
-          <div class="nokkel"><div class="nokkel-tall">${kr(s.sum_eiendeler)}</div><div class="nokkel-tekst">Sum eiendeler</div></div>
           <div class="nokkel"><div class="nokkel-tall">${s.ansatte ?? '–'}</div><div class="nokkel-tekst">Ansatte</div></div>
+          <div class="nokkel"><div class="nokkel-tall">${kr(s.sum_eiendeler)}</div><div class="nokkel-tekst">Sum eiendeler</div></div>
+          <div class="nokkel"><div class="nokkel-tall">${kr(s.sum_gjeld)}</div><div class="nokkel-tekst">Sum gjeld</div></div>
+          <div class="nokkel"><div class="nokkel-tall">${s.sum_eiendeler > 0 && s.egenkapital !== null ? (s.egenkapital / s.sum_eiendeler * 100).toLocaleString('nb-NO', { maximumFractionDigits: 0 }) + ' %' : '–'}</div><div class="nokkel-tekst">Egenkapitalandel</div></div>
         </div>` : '<p class="dempet">Ingen årsregnskap registrert i Regnskapsregisteret.</p>'}
       </div>
 
@@ -473,6 +486,8 @@ async function apnePanel(orgnr) {
   $('#panel').hidden = false;
   $('#panel-bakgrunn').hidden = false;
   $('.panel-lukk').addEventListener('click', lukkPanel);
+  $$('#panel [data-tilknyttet]').forEach((b) => b.addEventListener('click', () => apnePanel(b.dataset.tilknyttet)));
+  $('#panel').scrollTop = 0;
 
   const skjema = $('#oppfolging-skjema');
   skjema.addEventListener('change', async (e) => {
@@ -498,6 +513,31 @@ async function apnePanel(orgnr) {
     await api('/api/aktiviteter/' + b.dataset.slett, { method: 'DELETE' }).catch((e) => melding(e.message));
     apnePanel(orgnr);
   }));
+}
+
+function tilknyttedeKort(liste) {
+  if (!liste || !liste.length) {
+    return '<div class="kort"><h3>Tilknyttede selskaper</h3><p class="dempet">Ingen andre selskaper i regionen har samme personer i ledelsen eller styret.</p></div>';
+  }
+  const kontaktet = liste.filter((t) => t.ringt || t.status !== 'ny' || t.er_kunde);
+  const varsel = kontaktet.length
+    ? `<div class="varsel-boks">⚠ ${kontaktet.length === 1 ? 'Ett tilknyttet selskap' : kontaktet.length + ' tilknyttede selskaper'} er allerede kontaktet eller er kunde. Sjekk før du ringer.</div>`
+    : '';
+  return `<div class="kort">
+    <h3>Tilknyttede selskaper (${liste.length})</h3>
+    ${varsel}
+    <ul class="tilknyttet-liste">
+      ${liste.map((t) => `<li>
+        <div class="tilknyttet-topp">
+          <button class="lenke-knapp selskap-navn" data-tilknyttet="${esc(t.orgnr)}">${esc(t.navn)}</button>
+          ${t.er_kunde ? '<span class="merkelapp m-green">Vatnem-kunde</span>' : statusMerke(t.status)}
+          ${t.ringt ? `<span class="merkelapp m-amber">Ringt${t.sist_kontaktet ? ' ' + dato(t.sist_kontaktet) : ''}</span>` : ''}
+        </div>
+        <div class="under">${esc(t.kommune || '')}${t.revisor_navn ? ' · Revisor: ' + esc(t.revisor_navn) : ''}${t.ansvarlig ? ' · Ansvarlig: ' + esc(t.ansvarlig) : ''}</div>
+        <div class="under">Felles: ${t.koblinger.map(esc).join('; ')}</div>
+      </li>`).join('')}
+    </ul>
+  </div>`;
 }
 
 function lukkPanel() {
