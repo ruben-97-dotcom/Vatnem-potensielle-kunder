@@ -117,4 +117,29 @@ db.exec(`
   CREATE INDEX IF NOT EXISTS idx_personroller_nokkel ON personroller(person_nokkel, orgnr);
 `);
 
+// Hendelser (varsler) som revisorbytte og nye selskaper.
+db.exec(`
+  CREATE TABLE IF NOT EXISTS hendelser (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    orgnr TEXT NOT NULL,
+    type TEXT NOT NULL,
+    tekst TEXT NOT NULL,
+    tidspunkt TEXT NOT NULL
+  );
+  CREATE INDEX IF NOT EXISTS idx_hendelser_tid ON hendelser(tidspunkt);
+  CREATE INDEX IF NOT EXISTS idx_hendelser_orgnr ON hendelser(orgnr);
+
+  CREATE TABLE IF NOT EXISTS innstillinger (
+    nokkel TEXT PRIMARY KEY,
+    verdi TEXT
+  );
+`);
+const brukerKolonner = new Set(db.prepare('PRAGMA table_info(brukere)').all().map((k) => k.name));
+if (!brukerKolonner.has('varsler_sett')) db.exec('ALTER TABLE brukere ADD COLUMN varsler_sett TEXT');
+const oppfKolonner = new Set(db.prepare('PRAGMA table_info(oppfolging)').all().map((k) => k.name));
+if (!oppfKolonner.has('dl_telefon')) db.exec('ALTER TABLE oppfolging ADD COLUMN dl_telefon TEXT');
+if (!oppfKolonner.has('sl_telefon')) db.exec('ALTER TABLE oppfolging ADD COLUMN sl_telefon TEXT');
+const synkKolonner =new Set(db.prepare('PRAGMA table_info(synkroniseringer)').all().map((k) => k.name));
+if (!synkKolonner.has('type')) db.exec("ALTER TABLE synkroniseringer ADD COLUMN type TEXT DEFAULT 'full'");
+
 module.exports = db;

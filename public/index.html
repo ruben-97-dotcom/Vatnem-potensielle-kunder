@@ -27,6 +27,8 @@
       <nav class="faner" role="tablist">
         <button class="fane" data-fane="oversikt" role="tab">Oversikt</button>
         <button class="fane" data-fane="selskaper" role="tab">Selskaper</button>
+        <button class="fane" data-fane="varsler" role="tab">Varsler <span id="varsel-teller" class="teller" hidden></span></button>
+        <button class="fane" data-fane="plikt" role="tab">Revisjonsplikt</button>
         <button class="fane" data-fane="revisorer" role="tab">Revisormarkedet</button>
       </nav>
       <div class="bruker">
@@ -60,10 +62,91 @@
             <button class="knapp" data-snarvei="kunder">Eksisterende Vatnem-kunder</button>
           </div>
         </div>
+        <div class="to-kol">
+          <div class="kort">
+            <h2>Siste varsler <button class="lenke-knapp liten-lenke" data-gaa="varsler">Se alle →</button></h2>
+            <ul id="siste-varsler" class="aktivitet-liste"></ul>
+          </div>
+          <div class="kort">
+            <h2>Data fra Brønnøysundregistrene</h2>
+            <p id="synk-info" class="dempet"></p>
+            <div class="snarveier">
+              <button id="synk-knapp" class="knapp liten">Sjekk for endringer nå</button>
+              <button id="synk-full-knapp" class="knapp liten">Full oppdatering (ca. 2 min)</button>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- Varsler -->
+      <section id="fane-varsler" class="fane-innhold" hidden>
         <div class="kort">
-          <h2>Data</h2>
-          <p id="synk-info" class="dempet"></p>
-          <button id="synk-knapp" class="knapp liten">Oppdater fra Brønnøysundregistrene</button>
+          <h2>Varsler fra Brønnøysundregistrene</h2>
+          <p class="dempet">Portalen sjekker Brreg jevnlig og varsler når selskaper i området bytter eller mister revisor eller regnskapsfører, når nye selskaper registreres, og når et selskap uten revisor passerer grensen for revisjonsplikt.</p>
+          <div class="chips" id="varsel-filter">
+            <button class="chip aktiv" data-type="">Alle</button>
+            <button class="chip" data-type="revisor_fratradt">Revisor har gått av</button>
+            <button class="chip" data-type="revisor">Alle revisorendringer</button>
+            <button class="chip" data-type="revisjonsplikt">Passert revisjonsplikt</button>
+            <button class="chip" data-type="nye">Nye selskaper</button>
+            <button class="chip" data-type="regnskapsforer">Regnskapsfører</button>
+          </div>
+        </div>
+        <div class="liste-topp">
+          <span id="varsel-antall" class="dempet"></span>
+          <div id="varsel-sider" class="sider"></div>
+        </div>
+        <div class="tabell-ramme">
+          <table class="tabell">
+            <thead>
+              <tr>
+                <th>Dato</th>
+                <th>Hendelse</th>
+                <th>Selskap</th>
+                <th>Kommune</th>
+                <th class="tall">Inntekt</th>
+                <th class="tall">Egenkapital</th>
+                <th>Status</th>
+                <th class="smal">Ringt</th>
+              </tr>
+            </thead>
+            <tbody id="varsel-rader" class="radliste"></tbody>
+          </table>
+        </div>
+      </section>
+
+      <!-- Revisjonsplikt -->
+      <section id="fane-plikt" class="fane-innhold" hidden>
+        <div class="kort">
+          <h2>Selskaper uten revisor som er over eller nær grensen for revisjonsplikt</h2>
+          <p class="dempet" id="plikt-forklaring"></p>
+          <div class="chips" id="plikt-filter">
+            <button class="chip aktiv" data-plikt="alle">Alle</button>
+            <button class="chip" data-plikt="over_uten">Over grensen – har ingen revisor</button>
+            <button class="chip" data-plikt="naer">Nær grensen (over 70 %)</button>
+          </div>
+        </div>
+        <div class="liste-topp">
+          <span id="plikt-antall" class="dempet"></span>
+          <div id="plikt-sider" class="sider"></div>
+        </div>
+        <div class="tabell-ramme">
+          <table class="tabell">
+            <thead>
+              <tr>
+                <th>Selskap</th>
+                <th>Kommune</th>
+                <th>Inntekt <span class="dempet">(grense 7 mill)</span></th>
+                <th>Balanse <span class="dempet">(grense 27 mill)</span></th>
+                <th class="tall">Ansatte</th>
+                <th>Revisjon</th>
+                <th>Regnskapsfører</th>
+                <th>Status</th>
+                <th class="smal">Ringt</th>
+              </tr>
+            </thead>
+            <tbody id="plikt-rader" class="radliste"></tbody>
+          </table>
         </div>
       </section>
 
@@ -118,6 +201,12 @@
             <option value="vis">Vis Vatnem-kunder</option>
             <option value="kun">Kun Vatnem-kunder</option>
           </select>
+          <select name="nye" aria-label="Nyetablerte">
+            <option value="">Alle aldre</option>
+            <option value="30">Stiftet siste 30 dager</option>
+            <option value="90">Stiftet siste 90 dager</option>
+            <option value="365">Stiftet siste år</option>
+          </select>
           <select name="tilknyttet" aria-label="Tilknyttede selskaper">
             <option value="">Alle (tilknyttede)</option>
             <option value="ukontaktet">Skjul hvis tilknyttet selskap er kontaktet</option>
@@ -152,7 +241,7 @@
                 <th data-sorter="poeng" class="tall" title="Prioriteringspoeng 0–100">Poeng</th>
               </tr>
             </thead>
-            <tbody id="rader"></tbody>
+            <tbody id="rader" class="radliste"></tbody>
           </table>
         </div>
       </section>

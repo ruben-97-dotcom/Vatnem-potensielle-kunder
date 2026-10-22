@@ -162,6 +162,37 @@ input[type="checkbox"] { width: 17px; height: 17px; cursor: pointer; accent-colo
 .felt.hel { grid-column: 1 / -1; }
 .bryter { display: flex; align-items: center; gap: 8px; font-size: 14px; color: var(--tekst); cursor: pointer; }
 .nokkeltall { display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; }
+.teller { display: inline-block; min-width: 18px; padding: 0 5px; border-radius: 999px; background: var(--rod); color: #fff; font-size: 11px; font-weight: 600; line-height: 18px; text-align: center; margin-left: 4px; }
+.chips { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 12px; }
+.chip { border: 1px solid var(--linje); background: var(--flate); border-radius: 999px; padding: 5px 12px; font: inherit; font-size: 13px; cursor: pointer; color: var(--tekst); }
+.chip:hover { border-color: var(--aksent); }
+.chip.aktiv { background: var(--primar); border-color: var(--primar); color: #fff; }
+.tabell tbody tr.er-ny { background: #f3f8ff; }
+.ingen-brudd { white-space: nowrap; }
+.varsel-tekst { white-space: normal; max-width: 420px; margin-top: 3px; }
+.liten-lenke { font-size: 13px; font-weight: 400; float: right; }
+.grense { min-width: 150px; }
+.grense-tekst { font-size: 13px; font-variant-numeric: tabular-nums; }
+.grense-spor { background: var(--gra-bg); border-radius: 4px; height: 6px; margin-top: 4px; overflow: hidden; }
+.grense-fyll { height: 100%; background: #9aa4b2; border-radius: 4px; }
+.grense-fyll.naer { background: #e3a008; }
+.grense-fyll.over { background: var(--lilla); }
+.person-navn { font-weight: 500; }
+.ring-lenke { margin-left: 6px; font-size: 13px; }
+.person-kontakt { display: flex; gap: 6px; flex-wrap: wrap; align-items: center; margin: 4px 0 6px; }
+.person-tlf { width: 150px; padding: 4px 8px; font-size: 13px; }
+.person-kontakt .knapp { text-decoration: none; }
+.tabell-ramme.flat { box-shadow: none; }
+.tabell.kompakt th, .tabell.kompakt td { padding: 6px 8px; cursor: default; }
+.tabell.kompakt tbody tr { cursor: default; }
+.tabell.kompakt tbody tr:hover { background: none; }
+.enkel-liste { list-style: none; padding: 0; margin: 0; }
+.enkel-liste li { padding: 3px 0; }
+.rollegruppe { margin-bottom: 10px; }
+.rollegruppe-navn { font-weight: 600; font-size: 13px; margin-bottom: 2px; }
+.mellomtittel { margin-top: 14px; }
+.tidslinje.forste { margin-top: 0; }
+.tidslinje.forste li:first-child { border-top: 0; }
 .liten-merke { margin-top: 3px; font-size: 11px; padding: 1px 6px; }
 .varsel-boks { background: var(--gul-bg); color: var(--gul); border-radius: 8px; padding: 10px 12px; margin-bottom: 10px; font-weight: 500; }
 .tilknyttet-liste { list-style: none; padding: 0; margin: 0; }

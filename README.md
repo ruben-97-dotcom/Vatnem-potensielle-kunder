@@ -26,8 +26,38 @@ Eierskap (aksjonærregisteret) finnes ikke i de åpne API-ene. Et holdingselskap
 derfor ikke fanget opp.
 
 Selskaper som allerede har Vatnem Revisjon som revisor er merket som eksisterende kunder og skjult som standard.
-Dataene oppdateres automatisk hver uke, eller med knappen på oversiktssiden. Oppdateringen tar rundt 2 minutter og
-rører aldri statuser, notater eller annen oppfølging.
+
+### Oppdatering mot Brreg
+
+- **Hvert 30. minutt** leser portalen Brregs endringsfeeder for selskaper og roller, og henter bare selskapene som
+  er endret. Nye selskaper i området kommer dermed inn innen en halvtime. Intervallet kan endres med
+  `ENDRINGER_INTERVALL_MIN`.
+- **Hver uke** gjøres en full oppdatering av alle selskaper, roller og regnskap (rundt 2 minutter).
+- Begge kan også startes manuelt fra oversiktssiden. Oppdateringene rører aldri statuser, notater eller annen
+  oppfølging.
+
+### Varsler
+
+Fanen **Varsler** (med teller for uleste) viser:
+
+- Revisor har gått av, revisorbytte og ny revisor
+- Regnskapsfører har gått av, bytte og ny regnskapsfører
+- Nye selskaper registrert i området, og selskaper som har flyttet hit
+- Selskaper uten revisor som har passert grensen for revisjonsplikt
+
+### Revisjonsplikt
+
+Fanen **Revisjonsplikt** viser selskaper uten revisor som er over grensen, eller over 70 % av den, med stolper som
+viser hvor nær de er grensene for inntekt (7 mill) og balanse (27 mill).
+
+### Detaljer om hvert selskap
+
+Når et selskap åpnes, hentes dette direkte fra Brreg: alle roller med navn, avdelinger, aksjekapital, formål,
+tidligere navn, MVA-registrering, utvikling i regnskapet de siste tre årene, og flere regnskapstall (lønn,
+driftskostnader, bank, kortsiktig og langsiktig gjeld, om regnskapet er revidert).
+
+Brreg har ikke telefonnummer til personer. Ved daglig leder og styreleder er det derfor felt for å lagre
+telefonnummer, og knapper som søker opp personen hos 1881 og Gulesider.
 
 ### Oppfølging
 

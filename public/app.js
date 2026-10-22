@@ -104,6 +104,7 @@ async function start() {
     return visInnlogging();
   }
   tilstand.meta = await api('/api/meta');
+  visVarselTeller(tilstand.meta.ulesteVarsler);
   $('#innlogging').hidden = true;
   $('#portal').hidden = false;
   $('#bruker-navn').textContent = tilstand.meg.navn;
@@ -125,7 +126,7 @@ function fyllFilterValg() {
 
 // --- Faner ------------------------------------------------------------------
 function byttFane(fane) {
-  if (!['oversikt', 'selskaper', 'revisorer'].includes(fane)) fane = 'oversikt';
+  if (!['oversikt', 'selskaper', 'varsler', 'plikt', 'revisorer'].includes(fane)) fane = 'oversikt';
   tilstand.fane = fane;
   history.replaceState(null, '', '#' + fane);
   for (const b of $$('.fane')) b.classList.toggle('aktiv', b.dataset.fane === fane);
@@ -133,6 +134,15 @@ function byttFane(fane) {
   if (fane === 'oversikt') lastOversikt();
   if (fane === 'selskaper') lastListe();
   if (fane === 'revisorer') lastRevisorer();
+  if (fane === 'varsler') lastVarsler();
+  if (fane === 'plikt') lastPlikt();
+}
+$$('[data-gaa]').forEach((b) => b.addEventListener('click', () => byttFane(b.dataset.gaa)));
+
+function visVarselTeller(n) {
+  const el = $('#varsel-teller');
+  el.hidden = !n;
+  el.textContent = n > 99 ? '99+' : String(n || '');
 }
 for (const b of $$('.fane')) b.addEventListener('click', () => byttFane(b.dataset.fane));
 
@@ -149,10 +159,26 @@ async function lastOversikt() {
     ['I dialog', iDialog, { status: 'interessert,mote,tilbud' }],
     ['Kunder vunnet', o.perStatus.vunnet || 0, { status: 'vunnet' }],
     ['Mine forfalte oppfølginger', o.forfalt, { ansvarlig: 'meg', oppfolging: 'forfalt' }, o.forfalt > 0],
+    ['Nye varsler', o.ulesteVarsler, 'varsler', o.ulesteVarsler > 0],
+    ['Nye selskaper siste 30 dager', o.nyeSiste30, { nye: '30', sorter: 'stiftet' }],
+    ['Revisjonspliktige uten revisor', o.naerPlikt?.over_uten, 'plikt'],
+    ['Nær grensen for revisjonsplikt', o.naerPlikt?.naer, 'plikt'],
   ];
   $('#kpi').innerHTML = kpi.map(([t, v, f, varsel], i) =>
     `<button class="kpi${varsel ? ' varsel' : ''}" data-i="${i}"><div class="kpi-tall">${nf.format(v || 0)}</div><div class="kpi-tekst">${esc(t)}</div></button>`).join('');
-  $$('#kpi .kpi').forEach((el) => el.addEventListener('click', () => visListeMed(kpi[el.dataset.i][2])));
+  $$('#kpi .kpi').forEach((el) => el.addEventListener('click', () => {
+    const mal = kpi[el.dataset.i][2];
+    if (typeof mal === 'string') byttFane(mal); else visListeMed(mal);
+  }));
+  visVarselTeller(o.ulesteVarsler);
+
+  $('#siste-varsler').innerHTML = o.sisteVarsler.length
+    ? o.sisteVarsler.map((h) => `<li>
+        ${varselMerke(h.type)} <button class="lenke-knapp" data-orgnr="${esc(h.orgnr)}">${esc(h.navn)}</button>
+        <div>${esc(h.tekst)}</div>
+        <div class="aktivitet-meta">${dato(h.tidspunkt, true)}</div></li>`).join('')
+    : '<li class="dempet">Ingen varsler ennå. Portalen sjekker Brreg jevnlig og varsler her når noe skjer.</li>';
+  $$('#siste-varsler [data-orgnr]').forEach((el) => el.addEventListener('click', () => apnePanel(el.dataset.orgnr)));
 
   const maks = Math.max(1, ...meta.statuser.map((s) => o.perStatus[s.kode] || 0));
   $('#trakt').innerHTML = meta.statuser.map((s) => {
@@ -177,28 +203,130 @@ async function lastOversikt() {
 }
 
 function visSynk(s) {
-  const knapp = $('#synk-knapp');
+  const knapper = [$('#synk-knapp'), $('#synk-full-knapp')];
   if (s.kjorer) {
-    $('#synk-info').textContent = `Oppdaterer nå: ${s.fase} (${nf.format(s.ferdig)} av ${nf.format(s.totalt)})…`;
-    knapp.disabled = true;
+    $('#synk-info').textContent = `Oppdaterer nå: ${s.fase}${s.totalt ? ` (${nf.format(s.ferdig)} av ${nf.format(s.totalt)})` : ''}…`;
+    knapper.forEach((k) => { k.disabled = true; });
     setTimeout(async () => { if (tilstand.fane === 'oversikt') visSynk((await api('/api/meta')).synk); }, 3000);
     return;
   }
-  knapp.disabled = false;
-  const siste = s.siste;
-  $('#synk-info').textContent = siste
-    ? `Sist oppdatert ${dato(siste.ferdig, true)}: ${nf.format(siste.antall || 0)} selskaper (AS, ASA, SA og stiftelser) i ${tilstand.meta.kommuner.length} kommuner. Data oppdateres automatisk hver uke.` +
-      (siste.status === 'feil' ? ` Siste forsøk feilet: ${siste.melding}` : '')
-    : 'Data er ikke hentet ennå.';
+  knapper.forEach((k) => { k.disabled = false; });
+  const full = s.siste;
+  const endr = s.sisteEndringer;
+  const deler = [];
+  if (endr) deler.push(`Sist sjekket for endringer ${dato(endr.ferdig, true)}${endr.status === 'feil' ? ` (feilet: ${endr.melding})` : ''}. Sjekkes automatisk hvert ${s.intervallMin}. minutt.`);
+  if (full) deler.push(`Siste fulle oppdatering ${dato(full.ferdig, true)}: ${nf.format(full.antall || 0)} selskaper (AS, ASA, SA og stiftelser) i ${tilstand.meta.kommuner.length} kommuner. Kjøres automatisk hver uke.`);
+  $('#synk-info').textContent = deler.join(' ') || 'Data er ikke hentet ennå.';
 }
 
-$('#synk-knapp').addEventListener('click', async () => {
+async function startSynk(type) {
   try {
-    await api('/api/synk', { method: 'POST' });
-    melding('Oppdatering startet. Det tar et par minutter.');
+    await api('/api/synk', { method: 'POST', body: { type } });
+    melding(type === 'full' ? 'Full oppdatering startet. Det tar et par minutter.' : 'Sjekker Brreg for endringer…');
     visSynk((await api('/api/meta')).synk);
   } catch (e) { melding(e.message); }
-});
+}
+$('#synk-knapp').addEventListener('click', () => startSynk('endringer'));
+$('#synk-full-knapp').addEventListener('click', () => startSynk('full'));
+
+// --- Varsler ----------------------------------------------------------------
+const VARSELTYPER = {
+  revisor_fratradt: ['Revisor gått av', 'red'],
+  revisor_byttet: ['Revisorbytte', 'amber'],
+  revisor_ny: ['Ny revisor', 'gray'],
+  regnskapsforer_fratradt: ['Regnskapsfører gått av', 'amber'],
+  regnskapsforer_byttet: ['Regnskapsførerbytte', 'gray'],
+  regnskapsforer_ny: ['Ny regnskapsfører', 'gray'],
+  nytt_selskap: ['Nytt selskap', 'green'],
+  flyttet_inn: ['Nytt i området', 'blue'],
+  revisjonsplikt: ['Passert revisjonsplikt', 'violet'],
+};
+function varselMerke(type) {
+  const [t, f] = VARSELTYPER[type] || [type, 'gray'];
+  return `<span class="merkelapp m-${f}">${esc(t)}</span>`;
+}
+
+const varselTilstand = { type: '', side: 0 };
+$$('#varsel-filter .chip').forEach((c) => c.addEventListener('click', () => {
+  $$('#varsel-filter .chip').forEach((x) => x.classList.toggle('aktiv', x === c));
+  varselTilstand.type = c.dataset.type;
+  varselTilstand.side = 0;
+  lastVarsler();
+}));
+
+function statusCeller(r) {
+  const statusValg = tilstand.meta.statuser.map((s) => `<option value="${s.kode}" ${s.kode === r.status ? 'selected' : ''}>${esc(s.navn)}</option>`).join('');
+  return `<td>${r.er_kunde ? '<span class="merkelapp m-green">Vatnem-kunde</span>' : `<select class="status-velger" data-handling="status" aria-label="Status">${statusValg}</select>`}</td>
+    <td class="smal"><input type="checkbox" data-handling="ringt" ${r.ringt ? 'checked' : ''} aria-label="Ringt"></td>`;
+}
+
+function sideknapper(el, data, last) {
+  const sider = Math.max(1, Math.ceil(data.totalt / data.perSide));
+  el.innerHTML = `<button class="knapp liten" data-side="${data.side - 1}" ${data.side <= 0 ? 'disabled' : ''}>‹ Forrige</button>
+    <span class="dempet">Side ${data.side + 1} av ${sider}</span>
+    <button class="knapp liten" data-side="${data.side + 1}" ${data.side + 1 >= sider ? 'disabled' : ''}>Neste ›</button>`;
+  $$('[data-side]', el).forEach((b) => b.addEventListener('click', () => { last(Number(b.dataset.side)); window.scrollTo(0, 0); }));
+}
+
+async function lastVarsler() {
+  const p = new URLSearchParams({ type: varselTilstand.type, side: varselTilstand.side });
+  const data = await api('/api/hendelser?' + p);
+  $('#varsel-antall').textContent = `${nf.format(data.totalt)} varsler`;
+  sideknapper($('#varsel-sider'), data, (s) => { varselTilstand.side = s; lastVarsler(); });
+  $('#varsel-rader').innerHTML = data.rader.length ? data.rader.map((r) => `
+    <tr data-orgnr="${r.orgnr}" class="${r.ny ? 'er-ny' : ''} ${r.ringt ? 'er-ringt' : ''}">
+      <td class="ingen-brudd">${dato(r.tidspunkt, true)}${r.ny ? ' <span class="merkelapp m-blue liten-merke">Ny</span>' : ''}</td>
+      <td>${varselMerke(r.type)}<div class="under varsel-tekst">${esc(r.tekst)}</div></td>
+      <td><div class="selskap-navn">${esc(r.navn)}</div><div class="under">${esc(r.orgnr)} · ${esc(r.orgform)}${r.nace_tekst ? ' · ' + esc(r.nace_tekst) : ''}</div></td>
+      <td>${esc(r.kommune)}</td>
+      <td class="tall">${kr(r.driftsinntekter)}</td>
+      <td class="tall">${ekCelle(r.egenkapital)}</td>
+      ${statusCeller(r)}
+    </tr>`).join('') : '<tr><td colspan="8" class="tom-liste">Ingen varsler ennå. Portalen sjekker Brreg jevnlig, og nye hendelser dukker opp her.</td></tr>';
+  // Varslene regnes som sett når fanen er åpnet.
+  if (data.rader.some((r) => r.ny)) {
+    await api('/api/hendelser/sett', { method: 'POST' }).catch(() => {});
+    visVarselTeller(0);
+  }
+}
+
+// --- Revisjonsplikt -----------------------------------------------------------
+const pliktTilstand = { plikt: 'alle', side: 0 };
+$$('#plikt-filter .chip').forEach((c) => c.addEventListener('click', () => {
+  $$('#plikt-filter .chip').forEach((x) => x.classList.toggle('aktiv', x === c));
+  pliktTilstand.plikt = c.dataset.plikt;
+  pliktTilstand.side = 0;
+  lastPlikt();
+}));
+
+function grenseStolpe(verdi, grense, tekst) {
+  if (verdi === null || verdi === undefined) return '<span class="tom">–</span>';
+  const andel = verdi / grense;
+  const klasse = andel >= 1 ? 'over' : andel >= 0.7 ? 'naer' : '';
+  return `<div class="grense"><div class="grense-tekst">${tekst} <span class="dempet">${Math.round(andel * 100)} %</span></div>
+    <div class="grense-spor"><div class="grense-fyll ${klasse}" data-bredde="${Math.min(100, andel * 100)}"></div></div></div>`;
+}
+
+async function lastPlikt() {
+  const g = tilstand.meta.revisjonsplikt;
+  $('#plikt-forklaring').textContent = `Et AS kan bare velge bort revisjon når driftsinntektene er under ${kr(g.driftsinntekter).replace(/<[^>]+>/g, '')}, balansen under ${kr(g.sumEiendeler).replace(/<[^>]+>/g, '')} og det har færre enn ${g.ansatte} årsverk. Listen viser selskaper uten revisor som er over en av grensene, eller over 70 % av den. Antall ansatte i registeret er personer, ikke årsverk, så det er et estimat. Du får et varsel når et selskap passerer grensen.`;
+  const p = new URLSearchParams({ plikt: pliktTilstand.plikt, side: pliktTilstand.side, sorter: 'plikt', retning: 'desc' });
+  const data = await api('/api/selskaper?' + p);
+  $('#plikt-antall').textContent = `${nf.format(data.totalt)} selskaper`;
+  sideknapper($('#plikt-sider'), data, (s) => { pliktTilstand.side = s; lastPlikt(); });
+  $('#plikt-rader').innerHTML = data.rader.length ? data.rader.map((r) => `
+    <tr data-orgnr="${r.orgnr}" class="${r.ringt ? 'er-ringt' : ''}">
+      <td><div class="selskap-navn">${esc(r.navn)}</div><div class="under">${esc(r.orgnr)} · ${esc(r.orgform)}${r.nace_tekst ? ' · ' + esc(r.nace_tekst) : ''}</div>${tilknytningMerke(r)}</td>
+      <td>${esc(r.kommune)}</td>
+      <td>${grenseStolpe(r.driftsinntekter, g.driftsinntekter, kr(r.driftsinntekter))}</td>
+      <td>${grenseStolpe(r.sum_eiendeler, g.sumEiendeler, kr(r.sum_eiendeler))}</td>
+      <td class="tall">${r.ansatte ?? '<span class="tom">–</span>'}</td>
+      <td>${r.revisjonspliktig ? '<span class="merkelapp m-violet">Over grensen</span>' : '<span class="merkelapp m-amber">Nær grensen</span>'}${r.fravalg_revisjon ? '<div class="under">Har valgt bort revisjon</div>' : ''}</td>
+      <td class="celle-person" title="${esc(r.regnskapsforer_navn || '')}">${esc(r.regnskapsforer_navn) || '<span class="tom">Ingen registrert</span>'}</td>
+      ${statusCeller(r)}
+    </tr>`).join('') : '<tr><td colspan="9" class="tom-liste">Ingen selskaper i denne kategorien.</td></tr>';
+  $$('#plikt-rader .grense-fyll').forEach((el) => { el.style.width = el.dataset.bredde + '%'; });
+}
 
 const SNARVEIER = {
   'ringeliste': { ringt: 'nei', ek: 'positiv', status: 'ny', tilknyttet: 'ukontaktet', sorter: 'poeng' },
@@ -207,6 +335,7 @@ const SNARVEIER = {
   'har-revisor': { revisor: 'har', ek: 'positiv', sorter: 'poeng' },
   'prioritert': { prioritet: '1' },
   'kunder': { kunder: 'kun', sorter: 'driftsinntekter' },
+  'nye': { nye: '90', sorter: 'stiftet' },
 };
 $$('[data-snarvei]').forEach((b) => b.addEventListener('click', () => visListeMed(SNARVEIER[b.dataset.snarvei])));
 
@@ -316,7 +445,7 @@ async function lastListe() {
       <td class="smal"><button class="stjerne ${r.prioritet ? 'pa' : ''}" data-handling="prioritet" title="Prioriter" aria-label="Prioriter">★</button></td>
       <td><div class="selskap-navn">${esc(r.navn)}</div><div class="under">${esc(r.orgnr)} · ${esc(r.orgform)}${r.nace_tekst ? ' · ' + esc(r.nace_tekst) : ''}</div>${tilknytningMerke(r)}</td>
       <td>${esc(r.kommune)}</td>
-      <td class="celle-person"><div>${esc(r.daglig_leder) || '<span class="tom">–</span>'}</div><div class="under">${r.styreleder ? 'Styreleder: ' + esc(r.styreleder) : ''}</div></td>
+      <td class="celle-person"><div>${esc(r.daglig_leder) || '<span class="tom">–</span>'}${r.dl_telefon ? ` <span class="dempet">📞 ${esc(r.dl_telefon)}</span>` : ''}</div><div class="under">${r.styreleder ? 'Styreleder: ' + esc(r.styreleder) : ''}${r.sl_telefon ? ' · 📞 ' + esc(r.sl_telefon) : ''}</div></td>
       <td class="celle-person">${r.revisor_navn ? esc(r.revisor_navn) : r.fravalg_revisjon ? '<span class="dempet">Valgt bort</span>' : r.revisjonspliktig ? '<span class="merkelapp m-amber">Ingen – pliktig?</span>' : '<span class="tom">Ingen</span>'}</td>
       <td class="celle-person" title="${esc(r.regnskapsforer_navn || '')}">${esc(r.regnskapsforer_navn) || '<span class="tom">Ingen registrert</span>'}</td>
       <td class="tall">${kr(r.driftsinntekter)}${r.regnskap_aar && r.regnskap_aar !== tilstand.meta.sisteRegnskapsaar ? `<div class="under">${r.regnskap_aar}</div>` : ''}</td>
@@ -335,8 +464,9 @@ async function lastListe() {
   }
 }
 
-$('#rader').addEventListener('click', async (e) => {
-  const tr = e.target.closest('tr[data-orgnr]');
+// Felles for alle tabeller med selskaper (Selskaper, Varsler, Revisjonsplikt).
+document.addEventListener('click', async (e) => {
+  const tr = e.target.closest('.radliste tr[data-orgnr]');
   if (!tr) return;
   const handling = e.target.dataset.handling;
   if (handling === 'status' || handling === 'ringt') return;
@@ -348,8 +478,8 @@ $('#rader').addEventListener('click', async (e) => {
   }
   apnePanel(tr.dataset.orgnr);
 });
-$('#rader').addEventListener('change', async (e) => {
-  const tr = e.target.closest('tr[data-orgnr]');
+document.addEventListener('change', async (e) => {
+  const tr = e.target.closest('.radliste tr[data-orgnr]');
   const handling = e.target.dataset.handling;
   if (!tr || !handling) return;
   e.stopPropagation();
@@ -357,8 +487,8 @@ $('#rader').addEventListener('change', async (e) => {
   const ny = await oppdater(tr.dataset.orgnr, endring);
   if (ny) {
     tr.classList.toggle('er-ringt', !!ny.ringt);
-    $('[data-handling="ringt"]', tr).checked = !!ny.ringt;
-    $('[data-handling="status"]', tr).value = ny.status;
+    const cb = $('[data-handling="ringt"]', tr); if (cb) cb.checked = !!ny.ringt;
+    const sv = $('[data-handling="status"]', tr); if (sv) sv.value = ny.status;
   }
 });
 
@@ -451,8 +581,8 @@ async function apnePanel(orgnr) {
       <div class="kort">
         <h3>Roller og kontakt</h3>
         <dl class="info-liste">
-          <dt>Daglig leder</dt><dd>${esc(s.daglig_leder) || '–'}</dd>
-          <dt>Styreleder</dt><dd>${esc(s.styreleder) || '–'}</dd>
+          <dt>Daglig leder</dt><dd>${personKontakt(s.daglig_leder, 'dl_telefon', s.dl_telefon, s.poststed)}</dd>
+          <dt>Styreleder</dt><dd>${personKontakt(s.styreleder, 'sl_telefon', s.sl_telefon, s.poststed)}</dd>
           <dt>Revisor i dag</dt><dd>${esc(s.revisor_navn) || (s.fravalg_revisjon ? 'Ingen (valgt bort)' : 'Ingen')}</dd>
           <dt>Regnskapsfører</dt><dd>${esc(s.regnskapsforer_navn) || '–'}</dd>
           <dt>Telefon</dt><dd>${[tel(s.telefon), tel(s.mobil)].filter(Boolean).join(' · ') || '–'}</dd>
@@ -463,6 +593,13 @@ async function apnePanel(orgnr) {
           <dt>Poeng</dt><dd>${s.poeng} av 100</dd>
         </dl>
       </div>
+
+      ${s.hendelser?.length ? `<div class="kort">
+        <h3>Varsler for dette selskapet</h3>
+        <ul class="tidslinje forste">${s.hendelser.map((h) => `<li>${varselMerke(h.type)} <span class="dempet">${dato(h.tidspunkt, true)}</span><div>${esc(h.tekst)}</div></li>`).join('')}</ul>
+      </div>` : ''}
+
+      <div id="brreg-detaljer"><div class="kort"><p class="dempet">Henter mer informasjon fra Brønnøysundregistrene…</p></div></div>
 
       <div class="kort">
         <h3>Notater og aktivitet</h3>
@@ -488,6 +625,14 @@ async function apnePanel(orgnr) {
   $('.panel-lukk').addEventListener('click', lukkPanel);
   $$('#panel [data-tilknyttet]').forEach((b) => b.addEventListener('click', () => apnePanel(b.dataset.tilknyttet)));
   $('#panel').scrollTop = 0;
+  $('#vis-alle-tilknyttede')?.addEventListener('click', (e) => {
+    $$('#panel .tilknyttet-liste .ekstra').forEach((li) => { li.hidden = false; });
+    e.target.remove();
+  });
+  $$('#panel [data-person-felt]').forEach((inp) => inp.addEventListener('change', async () => {
+    if (await oppdater(orgnr, { [inp.dataset.personFelt]: inp.value.trim() })) apnePanel(orgnr);
+  }));
+  lastBrregDetaljer(orgnr);
 
   const skjema = $('#oppfolging-skjema');
   skjema.addEventListener('change', async (e) => {
@@ -515,6 +660,115 @@ async function apnePanel(orgnr) {
   }));
 }
 
+// Navn med telefonfelt og oppslag hos 1881/Gulesider (Brreg har ikke personers telefonnummer).
+function personKontakt(navn, felt, telefon, sted) {
+  if (!navn) return '–';
+  const sok = encodeURIComponent(`${navn} ${sted || ''}`.trim());
+  const ring = telefon ? ` <a class="ring-lenke" href="tel:${esc(telefon.replace(/\s/g, ''))}">📞 Ring</a>` : '';
+  return `<div class="person-navn">${esc(navn)}${ring}</div>
+    <div class="person-kontakt">
+      <input class="person-tlf" name="${felt}" data-person-felt="${felt}" type="tel" placeholder="Telefonnummer" value="${esc(telefon || '')}" aria-label="Telefon ${esc(navn)}">
+      <a class="knapp liten" href="https://www.1881.no/?query=${sok}" target="_blank" rel="noopener noreferrer">Søk 1881 ↗</a>
+      <a class="knapp liten" href="https://www.gulesider.no/${encodeURIComponent(navn)}/personer" target="_blank" rel="noopener noreferrer">Gulesider ↗</a>
+    </div>`;
+}
+
+// Henter roller, avdelinger, kapital, formål, tidligere navn og flere regnskapstall direkte fra Brreg.
+async function lastBrregDetaljer(orgnr) {
+  let d;
+  try {
+    d = await api(`/api/selskaper/${orgnr}/detaljer`);
+  } catch (e) {
+    if ($('#brreg-detaljer')) $('#brreg-detaljer').innerHTML = `<div class="kort"><p class="dempet">${esc(e.message)}</p></div>`;
+    return;
+  }
+  const mal = $('#brreg-detaljer');
+  if (!mal || tilstand.apentOrgnr !== orgnr) return;
+  const rad = (t, v) => (v === null || v === undefined || v === '' ? '' : `<dt>${esc(t)}</dt><dd>${v}</dd>`);
+  const i = d.info || {};
+  const r = d.regnskap;
+
+  const info = `<div class="kort">
+    <h3>Selskapsinformasjon</h3>
+    <dl class="info-liste">
+      ${rad(i.kapitalType || 'Aksjekapital', i.aksjekapital !== null && i.aksjekapital !== undefined ? kr(i.aksjekapital, false) + (i.antallAksjer ? ` <span class="dempet">(${nf.format(i.antallAksjer)} aksjer)</span>` : '') : null)}
+      ${rad('Formål', i.formaal ? esc(i.formaal) : null)}
+      ${rad('Stiftet', dato(i.stiftet))}
+      ${rad('Registrert', dato(i.registrert))}
+      ${rad('Foretaksregisteret', dato(i.foretaksregisteret))}
+      ${rad('MVA-registrert', i.mva ? 'Ja' : 'Nei')}
+      ${rad('Sektor', esc(i.sektor))}
+      ${rad('Bransje 2', esc(i.naering2))}
+      ${rad('Vedtekter sist endret', dato(i.vedtektsdato))}
+      ${rad('Siste innsendte årsregnskap', esc(i.sisteAarsregnskap))}
+      ${rad('Postadresse', esc(i.postadresse))}
+    </dl>
+    ${i.tidligereNavn?.length ? `<h3 class="mellomtittel">Tidligere navn</h3>
+      <ul class="enkel-liste">${i.tidligereNavn.map((n) => `<li>${esc(n.navn)} <span class="dempet">${dato(n.fra)} – ${dato(n.til)}</span></li>`).join('')}</ul>` : ''}
+  </div>`;
+
+  const roller = `<div class="kort">
+    <h3>Alle roller</h3>
+    ${d.roller.length ? d.roller.map((g) => `<div class="rollegruppe">
+      <div class="rollegruppe-navn">${esc(g.gruppe)}</div>
+      <ul class="enkel-liste">${g.roller.map((x) => `<li>${esc(x.navn || '–')} <span class="dempet">${esc(x.rolle)}${x.orgnr ? ' · ' + esc(x.orgnr) : ''}${x.fratradt ? ' · fratrådt' : ''}</span></li>`).join('')}</ul>
+    </div>`).join('') : '<p class="dempet">Ingen roller registrert.</p>'}
+  </div>`;
+
+  const avdelinger = `<div class="kort">
+    <h3>Avdelinger (${d.antallAvdelinger})</h3>
+    ${d.avdelinger.length ? `<ul class="tilknyttet-liste">${d.avdelinger.map((a) => `<li>
+      <div class="selskap-navn">${esc(a.navn)}</div>
+      <div class="under">${esc(a.orgnr)}${a.adresse ? ' · ' + esc(a.adresse) : ''}</div>
+      <div class="under">${a.ansatte !== null ? `${a.ansatte} ansatte` : 'Ansatte ikke oppgitt'}${a.naering ? ' · ' + esc(a.naering) : ''}${a.oppstart ? ' · startet ' + dato(a.oppstart) : ''}</div>
+    </li>`).join('')}</ul>${d.antallAvdelinger > d.avdelinger.length ? `<p class="dempet">Viser ${d.avdelinger.length} av ${d.antallAvdelinger}.</p>` : ''}` : '<p class="dempet">Ingen avdelinger registrert.</p>'}
+  </div>`;
+
+  const regnskap = r ? `<div class="kort">
+    <h3>Flere regnskapstall (${esc(r.aar)})</h3>
+    <dl class="info-liste">
+      ${rad('Salgsinntekter', kr(r.salgsinntekter))}
+      ${rad('Lønnskostnader', kr(r.loennskostnad))}
+      ${rad('Sum driftskostnader', kr(r.driftskostnader))}
+      ${rad('Resultat før skatt', kr(r.resultatFoerSkatt))}
+      ${rad('Skattekostnad', kr(r.skatt))}
+      ${rad('Bankinnskudd og kontanter', kr(r.bank))}
+      ${rad('Omløpsmidler', kr(r.omloepsmidler))}
+      ${rad('Anleggsmidler', kr(r.anleggsmidler))}
+      ${rad('Kortsiktig gjeld', kr(r.kortsiktigGjeld))}
+      ${rad('Langsiktig gjeld', kr(r.langsiktigGjeld))}
+      ${rad('Regnskapsregler', esc([r.regnskapsregler, r.smaaForetak ? 'små foretak' : null].filter(Boolean).join(', ')))}
+      ${rad('Revidert', r.ikkeRevidert ? '<span class="merkelapp m-amber">Nei, ikke revidert</span>' : 'Ja / ikke oppgitt')}
+      ${rad('Konsern', r.morselskap || r.harKonsernregnskap ? 'Morselskap med konsernregnskap' : null)}
+    </dl>
+  </div>` : '';
+
+  const h = d.historikk || [];
+  const endring = (a, b) => {
+    if (a === null || b === null || !a) return '';
+    const p = ((b - a) / Math.abs(a)) * 100;
+    return `<div class="under ${p >= 0 ? 'pos' : 'neg'}">${p >= 0 ? '+' : ''}${Math.round(p)} %</div>`;
+  };
+  const histRad = (tekst, felt, ek = false) => `<tr><td>${tekst}</td>${h.map((x, i) =>
+    `<td class="tall">${ek ? ekCelle(x[felt]) : kr(x[felt])}${i > 0 ? endring(h[i - 1][felt], x[felt]) : ''}</td>`).join('')}</tr>`;
+  const historikk = h.length > 1 ? `<div class="kort">
+    <h3>Utvikling ${esc(h[0].aar)}–${esc(h.at(-1).aar)}</h3>
+    <div class="tabell-ramme flat"><table class="tabell kompakt">
+      <thead><tr><th></th>${h.map((x) => `<th class="tall">${esc(x.aar)}</th>`).join('')}</tr></thead>
+      <tbody>
+        ${histRad('Driftsinntekter', 'driftsinntekter')}
+        ${histRad('Driftsresultat', 'driftsresultat')}
+        ${histRad('Årsresultat', 'aarsresultat')}
+        ${histRad('Egenkapital', 'egenkapital', true)}
+        ${histRad('Sum eiendeler', 'sumEiendeler')}
+        ${histRad('Sum gjeld', 'sumGjeld')}
+      </tbody>
+    </table></div>
+  </div>` : '';
+
+  mal.innerHTML = historikk + info + roller + avdelinger + regnskap;
+}
+
 function tilknyttedeKort(liste) {
   if (!liste || !liste.length) {
     return '<div class="kort"><h3>Tilknyttede selskaper</h3><p class="dempet">Ingen andre selskaper i regionen har samme personer i ledelsen eller styret.</p></div>';
@@ -527,7 +781,7 @@ function tilknyttedeKort(liste) {
     <h3>Tilknyttede selskaper (${liste.length})</h3>
     ${varsel}
     <ul class="tilknyttet-liste">
-      ${liste.map((t) => `<li>
+      ${liste.map((t, i) => `<li${i >= 5 ? ' class="ekstra" hidden' : ''}>
         <div class="tilknyttet-topp">
           <button class="lenke-knapp selskap-navn" data-tilknyttet="${esc(t.orgnr)}">${esc(t.navn)}</button>
           ${t.er_kunde ? '<span class="merkelapp m-green">Vatnem-kunde</span>' : statusMerke(t.status)}
@@ -537,6 +791,7 @@ function tilknyttedeKort(liste) {
         <div class="under">Felles: ${t.koblinger.map(esc).join('; ')}</div>
       </li>`).join('')}
     </ul>
+    ${liste.length > 5 ? `<button class="knapp liten" id="vis-alle-tilknyttede">Vis alle ${liste.length}</button>` : ''}
   </div>`;
 }
 

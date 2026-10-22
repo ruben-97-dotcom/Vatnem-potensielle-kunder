@@ -22,12 +22,18 @@ db.exec(`
     + CASE WHEN x.revisjonspliktig = 1 THEN 10 ELSE 0 END
     + CASE WHEN x.revisjonspliktig = 1 AND x.revisor_orgnr IS NULL THEN 10 ELSE 0 END
     + CASE WHEN x.regnskap_aar >= CAST(strftime('%Y', 'now') AS INTEGER) - 2 THEN 10 ELSE 0 END
-    ) AS poeng
+    ) AS poeng,
+    -- Hvor nær grensen for revisjonsplikt selskapet er (1 = på grensen). Ansatte telles bare
+    -- når selskapet ikke selv har oppgitt at revisjon er valgt bort (se revisjonspliktig under).
+    MAX(COALESCE(x.driftsinntekter, 0) / ${REVISJONSPLIKT.driftsinntekter}.0,
+        COALESCE(x.sum_eiendeler, 0) / ${REVISJONSPLIKT.sumEiendeler}.0,
+        CASE WHEN COALESCE(x.fravalg_revisjon, 0) = 0 THEN COALESCE(x.ansatte, 0) / ${REVISJONSPLIKT.ansatte}.0 ELSE 0 END
+    ) AS plikt_andel
   FROM (
     SELECT s.*,
       COALESCE(o.status, 'ny') AS status,
       COALESCE(o.ringt, 0) AS ringt,
-      o.sist_kontaktet, o.oppfolging_dato, o.ansvarlig_id, o.kontaktperson, o.kontakt_telefon, o.kontakt_epost,
+      o.sist_kontaktet, o.oppfolging_dato, o.ansvarlig_id, o.kontaktperson, o.kontakt_telefon, o.kontakt_epost, o.dl_telefon, o.sl_telefon,
       COALESCE(o.prioritet, 0) AS prioritet,
       CASE WHEN s.revisor_orgnr = '${VATNEM_ORGNR}' THEN 1 ELSE 0 END AS er_kunde,
       -- Estimat. Ansatte i registeret er personer, ikke årsverk, så har selskapet selv valgt bort
@@ -159,6 +165,10 @@ function byggFilter(q, bruker) {
   if (q.oppfolging === 'forfalt') { where.push('oppfolging_dato <= :idag'); p.idag = iDag(); }
   if (q.oppfolging === 'planlagt') where.push('oppfolging_dato IS NOT NULL');
   if (q.prioritet === '1') where.push('prioritet = 1');
+  if (q.plikt === 'over_uten') where.push("revisjonspliktig = 1 AND revisor_orgnr IS NULL AND orgform IN ('AS', 'SA')");
+  if (q.plikt === 'naer') where.push("revisjonspliktig = 0 AND revisor_orgnr IS NULL AND plikt_andel >= 0.7 AND orgform IN ('AS', 'SA')");
+  if (q.plikt === 'alle') where.push("revisor_orgnr IS NULL AND orgform IN ('AS', 'SA') AND (revisjonspliktig = 1 OR plikt_andel >= 0.7)");
+  if (/^\d+$/.test(q.nye || '')) { where.push("stiftet >= date('now', :nye_dager)"); p.nye_dager = `-${Number(q.nye)} days`; }
   if (q.tilknyttet === 'ukontaktet') where.push(`NOT EXISTS (${TILKNYTTET_KONTAKTET} WHERE p1.orgnr = v_selskaper.orgnr AND ${ER_KONTAKTET})`);
   if (q.kunder !== 'vis') where.push('er_kunde = 0');
   if (q.kunder === 'kun') where.push('er_kunde = 1');
@@ -167,13 +177,13 @@ function byggFilter(q, bruker) {
 
 const SORTERING = {
   poeng: 'poeng', navn: 'navn', kommune: 'kommune', driftsinntekter: 'driftsinntekter', egenkapital: 'egenkapital',
-  aarsresultat: 'aarsresultat', ansatte: 'ansatte', eiendeler: 'sum_eiendeler', gjeld: 'sum_gjeld', status: 'status', oppfolging: 'oppfolging_dato',
+  aarsresultat: 'aarsresultat', ansatte: 'ansatte', eiendeler: 'sum_eiendeler', gjeld: 'sum_gjeld', plikt: 'plikt_andel', stiftet: 'stiftet', status: 'status', oppfolging: 'oppfolging_dato',
   kontaktet: 'sist_kontaktet', revisor: 'revisor_navn', regnskapsforer: 'regnskapsforer_navn',
 };
 
 const LISTEFELT = `orgnr, navn, orgform, kommune, nace_tekst, ansatte, daglig_leder, styreleder, revisor_navn, revisor_orgnr,
   regnskapsforer_navn, regnskap_aar, driftsinntekter, aarsresultat, egenkapital, sum_eiendeler, sum_gjeld, fravalg_revisjon, revisjonspliktig, er_kunde,
-  status, ringt, sist_kontaktet, oppfolging_dato, ansvarlig_id, prioritet, poeng, telefon, mobil`;
+  status, ringt, sist_kontaktet, oppfolging_dato, ansvarlig_id, prioritet, poeng, telefon, mobil, plikt_andel, stiftet, dl_telefon, sl_telefon`;
 
 app.get('/api/selskaper', (req, res) => {
   const { sql, p } = byggFilter(req.query, req.bruker);
@@ -212,7 +222,7 @@ app.get('/api/eksport.csv', (req, res) => {
     ['Hjemmeside', 'hjemmeside'], ['Adresse', 'adresse'], ['Postnr', 'postnr'], ['Poststed', 'poststed'],
     ['Status', (r) => statusNavn[r.status]], ['Ringt', (r) => (r.ringt ? 'Ja' : 'Nei')], ['Sist kontaktet', 'sist_kontaktet'],
     ['Oppfølging', 'oppfolging_dato'], ['Ansvarlig', 'ansvarlig'], ['Kontaktperson', 'kontaktperson'],
-    ['Kontakt telefon', 'kontakt_telefon'], ['Kontakt e-post', 'kontakt_epost'], ['Poeng', 'poeng'],
+    ['Kontakt telefon', 'kontakt_telefon'], ['Kontakt e-post', 'kontakt_epost'], ['Tlf daglig leder', 'dl_telefon'], ['Tlf styreleder', 'sl_telefon'], ['Poeng', 'poeng'],
   ];
   const linjer = [kolonner.map(([t]) => t).join(';')];
   for (const r of rader) linjer.push(kolonner.map(([, f]) => csvCelle(typeof f === 'function' ? f(r) : r[f])).join(';'));
@@ -226,7 +236,8 @@ app.get('/api/selskaper/:orgnr', (req, res) => {
   if (!s) return res.status(404).json({ feil: 'Fant ikke selskapet' });
   const aktiviteter = db.prepare(`SELECT a.*, b.navn AS bruker FROM aktiviteter a LEFT JOIN brukere b ON b.id = a.bruker_id
     WHERE a.orgnr = ? ORDER BY a.opprettet DESC`).all(req.params.orgnr);
-  res.json({ ...s, aktiviteter, tilknyttede: tilknyttedeSelskaper(req.params.orgnr) });
+  const hendelser = db.prepare('SELECT type, tekst, tidspunkt FROM hendelser WHERE orgnr = ? ORDER BY tidspunkt DESC LIMIT 20').all(req.params.orgnr);
+  res.json({ ...s, aktiviteter, hendelser, tilknyttede: tilknyttedeSelskaper(req.params.orgnr) });
 });
 
 const leggTilAktivitet = db.prepare('INSERT INTO aktiviteter (orgnr, bruker_id, type, tekst, opprettet) VALUES (?, ?, ?, ?, ?)');
@@ -234,17 +245,17 @@ const leggTilAktivitet = db.prepare('INSERT INTO aktiviteter (orgnr, bruker_id, 
 function hentOppfolging(orgnr) {
   return db.prepare('SELECT * FROM oppfolging WHERE orgnr = ?').get(orgnr) ||
     { orgnr, status: 'ny', ringt: 0, sist_kontaktet: null, oppfolging_dato: null, ansvarlig_id: null,
-      kontaktperson: null, kontakt_telefon: null, kontakt_epost: null, prioritet: 0 };
+      kontaktperson: null, kontakt_telefon: null, kontakt_epost: null, dl_telefon: null, sl_telefon: null, prioritet: 0 };
 }
 
 const lagreOppfolging = db.prepare(`
   INSERT INTO oppfolging (orgnr, status, ringt, sist_kontaktet, oppfolging_dato, ansvarlig_id, kontaktperson,
-    kontakt_telefon, kontakt_epost, prioritet, oppdatert, oppdatert_av)
+    kontakt_telefon, kontakt_epost, dl_telefon, sl_telefon, prioritet, oppdatert, oppdatert_av)
   VALUES (:orgnr, :status, :ringt, :sist_kontaktet, :oppfolging_dato, :ansvarlig_id, :kontaktperson,
-    :kontakt_telefon, :kontakt_epost, :prioritet, :oppdatert, :oppdatert_av)
+    :kontakt_telefon, :kontakt_epost, :dl_telefon, :sl_telefon, :prioritet, :oppdatert, :oppdatert_av)
   ON CONFLICT(orgnr) DO UPDATE SET status=excluded.status, ringt=excluded.ringt, sist_kontaktet=excluded.sist_kontaktet,
     oppfolging_dato=excluded.oppfolging_dato, ansvarlig_id=excluded.ansvarlig_id, kontaktperson=excluded.kontaktperson,
-    kontakt_telefon=excluded.kontakt_telefon, kontakt_epost=excluded.kontakt_epost, prioritet=excluded.prioritet,
+    kontakt_telefon=excluded.kontakt_telefon, kontakt_epost=excluded.kontakt_epost, dl_telefon=excluded.dl_telefon, sl_telefon=excluded.sl_telefon, prioritet=excluded.prioritet,
     oppdatert=excluded.oppdatert, oppdatert_av=excluded.oppdatert_av
 `);
 
@@ -287,7 +298,7 @@ app.patch('/api/selskaper/:orgnr/oppfolging', (req, res) => {
     if (id !== gml.ansvarlig_id) logg.push(['status', brukerRad ? `Ansvarlig: ${brukerRad.navn}` : 'Ansvarlig fjernet']);
     ny.ansvarlig_id = id;
   }
-  for (const f of ['kontaktperson', 'kontakt_telefon', 'kontakt_epost']) if (f in b) ny[f] = tekst(b[f]);
+  for (const f of ['kontaktperson', 'kontakt_telefon', 'kontakt_epost', 'dl_telefon', 'sl_telefon']) if (f in b) ny[f] = tekst(b[f]);
   if ('prioritet' in b) ny.prioritet = b.prioritet ? 1 : 0;
 
   db.exec('BEGIN');
@@ -336,7 +347,15 @@ app.get('/api/oversikt', (req, res) => {
   const sisteAktivitet = db.prepare(`SELECT a.*, b.navn AS bruker, s.navn AS selskap FROM aktiviteter a
     LEFT JOIN brukere b ON b.id = a.bruker_id LEFT JOIN selskaper s ON s.orgnr = a.orgnr
     ORDER BY a.opprettet DESC LIMIT 12`).all();
-  res.json({ ...tall, perStatus, forfalt, forfaltAlle, kunder, sisteAktivitet });
+  const sisteVarsler = db.prepare(`SELECT h.*, s.navn FROM hendelser h JOIN selskaper s ON s.orgnr = h.orgnr
+    WHERE s.aktiv = 1 ORDER BY h.tidspunkt DESC, h.id DESC LIMIT 8`).all();
+  const nyeSiste30 = db.prepare(`SELECT COUNT(*) n FROM selskaper WHERE aktiv = 1 AND stiftet >= date('now', '-30 days')`).get().n;
+  const naerPlikt = db.prepare(`SELECT
+      SUM(revisjonspliktig = 1 AND revisor_orgnr IS NULL) over_uten,
+      SUM(revisjonspliktig = 0 AND revisor_orgnr IS NULL AND plikt_andel >= 0.7) naer
+    ${base}`).get();
+  res.json({ ...tall, perStatus, forfalt, forfaltAlle, kunder, sisteAktivitet, sisteVarsler, nyeSiste30,
+    ulesteVarsler: ulesteVarsler(req.bruker.id), naerPlikt });
 });
 
 app.get('/api/revisorer', (req, res) => {
@@ -349,35 +368,86 @@ app.get('/api/revisorer', (req, res) => {
 app.get('/api/meta', (req, res) => {
   const antall = Object.fromEntries(db.prepare('SELECT kommunenr, COUNT(*) n FROM selskaper WHERE aktiv = 1 GROUP BY kommunenr').all()
     .map((r) => [r.kommunenr, r.n]));
-  const sisteSynk = db.prepare("SELECT * FROM synkroniseringer WHERE status != 'kjorer' ORDER BY id DESC LIMIT 1").get() || null;
+  const siste = (type) => db.prepare(`SELECT * FROM synkroniseringer WHERE status != 'kjorer' AND COALESCE(type, 'full') = ?
+    ORDER BY id DESC LIMIT 1`).get(type) || null;
   res.json({
     kommuner: KOMMUNER.map((k) => ({ ...k, antall: antall[k.nr] || 0 })),
     statuser: STATUSER,
     brukere: db.prepare('SELECT id, navn FROM brukere ORDER BY navn').all(),
     revisjonsplikt: REVISJONSPLIKT,
     sisteRegnskapsaar: db.prepare('SELECT MAX(regnskap_aar) aar FROM selskaper WHERE aktiv = 1').get().aar,
-    synk: { ...brreg.status, siste: sisteSynk },
+    synk: { ...brreg.status, siste: siste('full'), sisteEndringer: siste('endringer'), intervallMin: ENDRINGER_INTERVALL_MIN },
+    ulesteVarsler: ulesteVarsler(req.bruker.id),
   });
 });
 
-app.post('/api/synk', (req, res) => {
-  if (brreg.status.kjorer) return res.status(409).json({ feil: 'Oppdatering kjører allerede' });
-  startSynk();
+// --- Varsler (hendelser fra Brreg) --------------------------------------------
+const HENDELSESTYPER = {
+  revisor: ['revisor_fratradt', 'revisor_byttet', 'revisor_ny'],
+  revisor_fratradt: ['revisor_fratradt'],
+  regnskapsforer: ['regnskapsforer_fratradt', 'regnskapsforer_byttet', 'regnskapsforer_ny'],
+  nye: ['nytt_selskap', 'flyttet_inn'],
+  revisjonsplikt: ['revisjonsplikt'],
+};
+
+function ulesteVarsler(brukerId) {
+  const sett = db.prepare('SELECT varsler_sett FROM brukere WHERE id = ?').get(brukerId)?.varsler_sett || '';
+  return db.prepare(`SELECT COUNT(*) n FROM hendelser h JOIN selskaper s ON s.orgnr = h.orgnr
+    WHERE h.tidspunkt > ? AND s.aktiv = 1`).get(sett).n;
+}
+
+app.get('/api/hendelser', (req, res) => {
+  const typer = HENDELSESTYPER[req.query.type];
+  const where = ['s.aktiv = 1'];
+  if (typer) where.push(`h.type IN (${typer.map((t) => `'${t}'`).join(',')})`);
+  const side = Math.max(0, Number(req.query.side) || 0);
+  const sett = db.prepare('SELECT varsler_sett FROM brukere WHERE id = ?').get(req.bruker.id)?.varsler_sett || '';
+  const totalt = db.prepare(`SELECT COUNT(*) n FROM hendelser h JOIN selskaper s ON s.orgnr = h.orgnr WHERE ${where.join(' AND ')}`).get().n;
+  const rader = db.prepare(`SELECT h.*, v.navn, v.kommune, v.orgform, v.nace_tekst, v.driftsinntekter, v.egenkapital, v.ansatte,
+      v.revisor_navn, v.regnskapsforer_navn, v.status, v.ringt, v.er_kunde, v.daglig_leder,
+      CASE WHEN h.tidspunkt > :sett THEN 1 ELSE 0 END AS ny
+    FROM hendelser h JOIN selskaper s ON s.orgnr = h.orgnr JOIN v_selskaper v ON v.orgnr = h.orgnr
+    WHERE ${where.join(' AND ')} ORDER BY h.tidspunkt DESC, h.id DESC LIMIT 50 OFFSET :offset`).all({ sett, offset: side * 50 });
+  res.json({ totalt, side, perSide: 50, rader });
+});
+
+app.post('/api/hendelser/sett', (req, res) => {
+  db.prepare('UPDATE brukere SET varsler_sett = ? WHERE id = ?').run(new Date().toISOString(), req.bruker.id);
   res.json({ ok: true });
 });
 
-function startSynk() {
-  brreg.synkroniser({ logg: (m) => console.log('[synk]', m) }).catch((e) => console.error('[synk] feilet:', e.message));
-}
+// --- Detaljer hentet direkte fra Brreg (roller, avdelinger, kapital, formål …) ---
+app.get('/api/selskaper/:orgnr/detaljer', async (req, res) => {
+  if (!/^\d{9}$/.test(req.params.orgnr)) return res.status(400).json({ feil: 'Ugyldig orgnr' });
+  try {
+    res.json(await brreg.hentDetaljer(req.params.orgnr));
+  } catch (e) {
+    console.error('[detaljer]', e.message);
+    res.status(502).json({ feil: 'Kunne ikke hente detaljer fra Brønnøysundregistrene akkurat nå' });
+  }
+});
 
-// Hent data automatisk ved første oppstart og deretter ukentlig.
+// --- Oppdatering mot Brreg --------------------------------------------------------
+// Endringer hentes hvert 30. minutt (nye selskaper, revisorbytte osv.). Full henting ukentlig.
+const ENDRINGER_INTERVALL_MIN = Number(process.env.ENDRINGER_INTERVALL_MIN) || 30;
+const logg = (m) => console.log(new Date().toISOString(), '[synk]', m);
+
+app.post('/api/synk', (req, res) => {
+  if (brreg.status.kjorer) return res.status(409).json({ feil: 'Oppdatering kjører allerede' });
+  const jobb = req.body?.type === 'full' ? brreg.synkroniser : brreg.synkEndringer;
+  jobb({ logg }).catch((e) => console.error('[synk] feilet:', e.message));
+  res.json({ ok: true });
+});
+
 function synkVedBehov() {
-  const siste = db.prepare("SELECT ferdig FROM synkroniseringer WHERE status = 'ok' ORDER BY id DESC LIMIT 1").get();
-  const gammel = !siste || Date.now() - new Date(siste.ferdig).getTime() > 7 * 24 * 60 * 60 * 1000;
-  if (gammel && !brreg.status.kjorer && process.env.AUTO_SYNK !== 'av') startSynk();
+  if (brreg.status.kjorer || process.env.AUTO_SYNK === 'av') return;
+  const sisteFull = db.prepare("SELECT ferdig FROM synkroniseringer WHERE status = 'ok' AND COALESCE(type, 'full') = 'full' ORDER BY id DESC LIMIT 1").get();
+  const fullGammel = !sisteFull || Date.now() - new Date(sisteFull.ferdig).getTime() > 7 * 24 * 60 * 60 * 1000;
+  const jobb = fullGammel ? brreg.synkroniser : brreg.synkEndringer;
+  jobb({ logg }).catch((e) => console.error('[synk] feilet:', e.message));
 }
 setTimeout(synkVedBehov, 5000);
-setInterval(synkVedBehov, 6 * 60 * 60 * 1000).unref();
+setInterval(synkVedBehov, ENDRINGER_INTERVALL_MIN * 60 * 1000).unref();
 
 app.use('/api', (req, res) => res.status(404).json({ feil: 'Ukjent adresse' }));
 app.use((err, req, res, next) => {
