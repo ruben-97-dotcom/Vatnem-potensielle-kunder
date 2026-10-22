@@ -2,7 +2,7 @@
 <html lang="nb">
 <head>
   <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
   <title>Vatnem Vekst</title>
   <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns=%27http://www.w3.org/2000/svg%27 viewBox=%270 0 36 36%27%3E%3Ccircle cx=%2724%27 cy=%2712%27 r=%277%27 fill=%27%23F28C38%27/%3E%3Cpath d=%27M2 32 14 12l6 9 4-5 10 16z%27 fill=%27%231A2B2B%27/%3E%3C/svg%3E">
   <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -39,10 +39,22 @@
           <span class="merke-navn">Vatnem</span> <span class="merke-under">Vekst</span>
         </a>
         <nav class="faner" aria-label="Hovedmeny">
-          <button class="fane" data-fane="oversikt">Oversikt</button>
-          <button class="fane" data-fane="selskaper">Selskaper</button>
-          <button class="fane" data-fane="plikt">Revisjonsplikt</button>
-          <button class="fane" data-fane="revisorer">Revisormarkedet</button>
+          <button class="fane" data-fane="oversikt">
+            <svg class="ikon fane-ikon" viewBox="0 0 24 24" aria-hidden="true"><path d="M2 20 9 8l4 6 3-4 6 10z"/></svg>
+            <span>Oversikt</span>
+          </button>
+          <button class="fane" data-fane="selskaper">
+            <svg class="ikon fane-ikon" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 21V5a1 1 0 0 1 1-1h9a1 1 0 0 1 1 1v16"/><path d="M15 10h4a1 1 0 0 1 1 1v10"/><path d="M8 8h3M8 12h3M8 16h3M2 21h20"/></svg>
+            <span>Selskaper</span>
+          </button>
+          <button class="fane" data-fane="plikt">
+            <svg class="ikon fane-ikon" viewBox="0 0 24 24" aria-hidden="true"><path d="M5 21V4"/><path d="M5 4h11l-2 4 2 4H5"/></svg>
+            <span class="fane-lang">Revisjonsplikt</span><span class="fane-kort">Plikt</span>
+          </button>
+          <button class="fane" data-fane="revisorer">
+            <svg class="ikon fane-ikon" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 20V10M10 20V4M16 20v-7M22 20H2"/></svg>
+            <span class="fane-lang">Revisormarkedet</span><span class="fane-kort">Revisorer</span>
+          </button>
         </nav>
         <div class="bruker">
           <span class="dempet" id="hilsen">God morgen,</span> <strong id="bruker-navn"></strong>

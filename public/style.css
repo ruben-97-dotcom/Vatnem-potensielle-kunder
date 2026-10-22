@@ -445,3 +445,194 @@ main { max-width: 1440px; margin: 0 auto; padding: 28px 32px 48px; }
 @media (max-width: 700px) {
   .filter-hoved select, .flere-knapp { flex: 1 1 calc(50% - 5px); }
 }
+
+/* ============================================================================
+   Mobil: fanelinje nederst, kompakt topp og tabellrader som kort
+   ========================================================================= */
+.fane-ikon, .fane-kort { display: none; }
+
+@media (max-width: 700px) {
+  /* Kompakt topp */
+  .topp { flex-wrap: nowrap; gap: 8px; padding: 10px 16px; }
+  .merke-navn, .merke-under { font-size: 16px; }
+  .bruker { margin-left: auto; gap: 4px; }
+  #hilsen { display: none; }
+  .bruker .tekstknapp { margin-left: 4px; }
+
+  /* Fanelinje nederst */
+  .faner {
+    position: fixed; left: 0; right: 0; bottom: 0; z-index: 15; order: 0; width: auto; margin: 0;
+    display: grid; grid-template-columns: repeat(4, 1fr); gap: 4px; overflow: visible;
+    background: var(--card); border-top: 1px solid var(--border);
+    padding: 6px 8px calc(6px + env(safe-area-inset-bottom));
+  }
+  .fane { flex-direction: column; justify-content: center; gap: 2px; min-height: 56px; padding: 6px 2px; border-radius: 16px; font-size: 12px; white-space: nowrap; }
+  .fane:hover { background: var(--bg); }
+  .fane.aktiv { background: var(--ink); color: #fff; }
+  .fane-ikon { display: block; width: 22px; height: 22px; }
+  .fane-lang { display: none; }
+  .fane-kort { display: inline; }
+  main { padding-bottom: calc(96px + env(safe-area-inset-bottom)); }
+  .melding { bottom: calc(88px + env(safe-area-inset-bottom)); }
+  .hero-brikker .brikke { flex: 1 1 0; min-width: 0; }
+}
+
+/* Tabellene blir kort når skjermen er for smal for kolonner (nettbrett og mobil) */
+@media (max-width: 1023px) {
+  /* Tabeller som kort */
+  .tabell-ramme { padding: 4px 16px; border-radius: 24px; }
+  .radliste, .radliste tr { display: block; }
+  .tabell:has(.radliste) thead { display: none; }
+  .radliste tr {
+    display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px 14px;
+    position: relative; padding: 16px 0; border-bottom: 1px solid var(--line);
+  }
+  .radliste tr:last-child { border-bottom: 0; }
+  .radliste tr:hover { background: none; }
+  .radliste td { display: block; padding: 0; border: 0; min-width: 0; max-width: none; text-align: left; white-space: normal; }
+  .radliste td.tom-liste { grid-column: 1 / -1; padding: 24px 0; text-align: center; }
+  .radliste td::before { display: block; font-size: 12px; color: var(--muted); font-weight: 500; margin-bottom: 2px; }
+  .radliste .selskap-navn, .radliste .under, .radliste .celle-person { max-width: none; white-space: normal; }
+  .radliste .status-velger { width: 100%; max-width: none; min-height: 44px; }
+  .radliste td.smal { width: auto; display: flex; align-items: center; gap: 8px; }
+  .radliste td.smal::before { display: inline; margin: 0; }
+
+  /* Selskaper */
+  #rader td:nth-child(1) { position: absolute; top: 6px; right: -8px; }
+  #rader td:nth-child(2) { order: 1; grid-column: 1 / -1; padding-right: 40px; }
+  #rader td:nth-child(4) { order: 2; grid-column: 1 / -1; }
+  #rader td:nth-child(3) { order: 3; }
+  #rader td:nth-child(5) { order: 3; grid-column: span 2; }
+  #rader td:nth-child(7), #rader td:nth-child(8), #rader td:nth-child(11) { order: 4; }
+  #rader td:nth-child(12) { order: 5; grid-column: span 2; }
+  #rader td:nth-child(13) { order: 5; }
+  #rader td:nth-child(6), #rader td:nth-child(9), #rader td:nth-child(10), #rader td:nth-child(14) { display: none; }
+  #rader td:nth-child(3)::before { content: "Kommune"; }
+  #rader td:nth-child(4)::before { content: "Daglig leder"; }
+  #rader td:nth-child(5)::before { content: "Revisor i dag"; }
+  #rader td:nth-child(7)::before { content: "Inntekt"; }
+  #rader td:nth-child(8)::before { content: "Egenkapital"; }
+  #rader td:nth-child(11)::before { content: "Ansatte"; }
+  #rader td:nth-child(13)::before { content: "Ringt"; }
+
+  /* Varsler */
+  #varsel-rader td:nth-child(3) { order: 1; grid-column: 1 / -1; }
+  #varsel-rader td:nth-child(2) { order: 2; grid-column: 1 / -1; }
+  #varsel-rader td:nth-child(1) { order: 3; grid-column: 1 / -1; font-size: 13px; color: var(--muted); }
+  #varsel-rader td:nth-child(4), #varsel-rader td:nth-child(5), #varsel-rader td:nth-child(6) { order: 4; }
+  #varsel-rader td:nth-child(7) { order: 5; grid-column: span 2; }
+  #varsel-rader td:nth-child(8) { order: 5; }
+  #varsel-rader td:nth-child(4)::before { content: "Kommune"; }
+  #varsel-rader td:nth-child(5)::before { content: "Inntekt"; }
+  #varsel-rader td:nth-child(6)::before { content: "Egenkapital"; }
+  #varsel-rader td:nth-child(8)::before { content: "Ringt"; }
+  .varsel-tekst { max-width: none; }
+
+  /* Revisjonsplikt */
+  #plikt-rader tr { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  #plikt-rader td:nth-child(1) { order: 1; grid-column: 1 / -1; }
+  #plikt-rader td:nth-child(6) { order: 2; grid-column: 1 / -1; }
+  #plikt-rader td:nth-child(3), #plikt-rader td:nth-child(4) { order: 3; }
+  #plikt-rader td:nth-child(2), #plikt-rader td:nth-child(5) { order: 4; }
+  #plikt-rader td:nth-child(7) { order: 5; grid-column: 1 / -1; }
+  #plikt-rader td:nth-child(8), #plikt-rader td:nth-child(9) { order: 6; }
+  #plikt-rader td:nth-child(2)::before { content: "Kommune"; }
+  #plikt-rader td:nth-child(3)::before { content: "Inntekt (grense 7 mill)"; }
+  #plikt-rader td:nth-child(4)::before { content: "Balanse (grense 27 mill)"; }
+  #plikt-rader td:nth-child(5)::before { content: "Ansatte"; }
+  #plikt-rader td:nth-child(7)::before { content: "Regnskapsfører"; }
+  #plikt-rader td:nth-child(9)::before { content: "Ringt"; }
+  .grense { min-width: 0; }
+
+  /* Revisormarkedet: bare de viktigste kolonnene */
+  #fane-revisorer th:nth-child(4), #fane-revisorer th:nth-child(5),
+  #revisor-rader td:nth-child(4), #revisor-rader td:nth-child(5) { display: none; }
+  .andel { min-width: 110px; }
+
+  /* Sidetall og topp over listene */
+  .liste-topp { gap: 8px; }
+  .sider .knapp { padding: 8px 12px; }
+}
+
+.radliste td.tall { text-align: right; }
+@media (max-width: 1023px) {
+  .radliste td.tall { text-align: left; }
+  #rader .under .kommune-tekst { display: none; }
+}
+
+/* ============================================================================
+   PC: Selskaper-tabellen tilpasser seg bredden i stedet for å scrolle sideveis.
+   Kolonner skjules etter viktighet; alt finnes i detaljvisningen og CSV-eksporten.
+   Kolonner: 1 stjerne, 2 selskap, 3 kommune, 4 ledelse, 5 revisor, 6 regnskapsfører,
+   7 inntekt, 8 egenkapital, 9 eiendeler, 10 gjeld, 11 ansatte, 12 status, 13 ringt, 14 poeng
+   ========================================================================= */
+/* Selskaper og Revisjonsplikt får bruke mer av bredden på store skjermer */
+main:has(#fane-selskaper:not([hidden])), main:has(#fane-plikt:not([hidden])) { max-width: 1840px; }
+#fane-selskaper .tabell th, #fane-selskaper .tabell td,
+#fane-plikt .tabell th, #fane-plikt .tabell td { padding: 10px 8px; }
+#fane-selskaper .selskap-navn, #fane-selskaper .under { max-width: 240px; }
+#fane-selskaper .celle-person { max-width: 150px; }
+#fane-selskaper .status-velger { max-width: 150px; }
+
+/* Selskaper: kommune vises under navnet, ikke som egen kolonne, unntatt på svært brede skjermer */
+#fane-selskaper th:nth-child(3), #rader td:nth-child(3) { display: none; }
+@media (min-width: 1900px) {
+  #fane-selskaper th:nth-child(3), #rader td:nth-child(3) { display: table-cell; }
+  #rader .under .kommune-tekst { display: none; }
+}
+@media (max-width: 1599px) {
+  #fane-selskaper th:nth-child(6), #rader td:nth-child(6),
+  #fane-selskaper th:nth-child(14), #rader td:nth-child(14) { display: none; }
+}
+@media (max-width: 1379px) {
+  #fane-selskaper th:nth-child(9), #rader td:nth-child(9),
+  #fane-selskaper th:nth-child(10), #rader td:nth-child(10) { display: none; }
+}
+@media (max-width: 1179px) {
+  #fane-selskaper th:nth-child(11), #rader td:nth-child(11) { display: none; }
+  #fane-selskaper .selskap-navn, #fane-selskaper .under { max-width: 200px; }
+  #fane-selskaper .celle-person { max-width: 120px; }
+  #fane-selskaper .status-velger { max-width: 136px; }
+}
+
+/* Revisjonsplikt: 1 selskap, 2 kommune, 3 inntekt, 4 balanse, 5 ansatte, 6 revisjon, 7 regnskapsfører, 8 status, 9 ringt */
+#plikt-rader .under .kommune-tekst { display: none; }
+@media (max-width: 1379px) {
+  #fane-plikt th:nth-child(7), #plikt-rader td:nth-child(7) { display: none; }
+}
+@media (max-width: 1299px) {
+  #fane-plikt th:nth-child(2), #plikt-rader td:nth-child(2),
+  #fane-plikt th:nth-child(5), #plikt-rader td:nth-child(5) { display: none; }
+  #plikt-rader .under .kommune-tekst { display: inline; }
+  .grense { min-width: 110px; }
+  #fane-plikt .selskap-navn, #fane-plikt .under { max-width: 200px; }
+}
+/* I kortvisningen har kommune, ansatte og regnskapsfører egne felt igjen */
+@media (max-width: 1023px) {
+  #rader td:nth-child(3), #rader td:nth-child(11) { display: block; }
+  #rader .under .kommune-tekst { display: none; }
+  #plikt-rader td:nth-child(2), #plikt-rader td:nth-child(5), #plikt-rader td:nth-child(7) { display: block; }
+  #plikt-rader .under .kommune-tekst { display: none; }
+}
+@media (max-width: 700px) {
+  #fane-revisorer .tabell th, #fane-revisorer .tabell td { padding: 10px 6px; }
+  .andel { min-width: 0; gap: 6px; }
+  .andel-spor { flex: 0 0 36px; }
+  .andel-tall { min-width: 0; }
+}
+
+/* Fjellet: første og siste merke holdes innenfor bildet */
+.merke-etappe.forste-etappe { transform: translate(-14px, -100%); align-items: flex-start; }
+.merke-etappe.forste-etappe .etappe-prikk { margin-left: 2px; }
+.merke-etappe.topp-etappe { transform: translate(calc(-100% + 14px), -100%); align-items: flex-end; }
+.merke-etappe.topp-etappe .etappe-prikk { margin-right: 2px; }
+
+@media (max-width: 480px) {
+  .andel-spor { display: none; }
+  #revisor-rader .revisor-navn { font-size: 14px; }
+}
+@media (max-width: 700px) {
+  .brikke { padding: 10px 14px; }
+  .brikke-tall { font-size: 18px; }
+  .brikke-etikett { font-size: 12px; }
+}

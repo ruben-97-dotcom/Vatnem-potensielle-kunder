@@ -213,7 +213,7 @@ function punktPaaRuta(andel) {
 function etapper(o) {
   const ps = o.perStatus;
   const m = o.maal;
-  const basecamp = { tall: nf.format(ps.ny || 0), tekst: 'basecamp' };
+  const basecamp = { tall: nf.format(ps.ny || 0), tekst: 'basecamp', forste: true };
   const topp = { tall: `${nf.format(m.hovedmal.verdi)} / ${nf.format(m.hovedmal.antall)}`, tekst: m.hovedmal.tittel, topp: true };
   if (m.delmal.length) {
     const del = m.delmal.map((d) => ({ tall: `${nf.format(d.verdi)} / ${nf.format(d.antall)}`, tekst: d.tittel, naadd: d.verdi >= d.antall }));
@@ -247,7 +247,7 @@ function tegnHero(o) {
 
   const liste = etapper(o);
   $('#fjell-merker').innerHTML = liste.map((e) => `
-    <div class="merke-etappe ${e.topp ? 'topp-etappe' : ''} ${e.naadd ? 'naadd' : ''}"
+    <div class="merke-etappe ${e.forste ? 'forste-etappe' : ''} ${e.topp ? 'topp-etappe' : ''} ${e.naadd ? 'naadd' : ''}"
       data-x="${(e.punkt[0] / 1200) * 100}" data-y="${e.punkt[1]}">
       <span class="etappe-pille" title="${esc(e.tall + ' ' + e.tekst)}"><b>${esc(e.tall)}</b> ${esc(e.tekst)}</span>
       <span class="etappe-prikk"></span>
@@ -555,7 +555,7 @@ async function lastPlikt() {
   sideknapper($('#plikt-sider'), data, (s) => { pliktTilstand.side = s; lastPlikt(); });
   $('#plikt-rader').innerHTML = data.rader.length ? data.rader.map((r) => `
     <tr data-orgnr="${r.orgnr}" class="${r.ringt ? 'er-ringt' : ''}">
-      <td><button class="lenke-knapp selskap-navn" type="button">${esc(r.navn)}</button><div class="under">${esc(r.orgnr)} · ${esc(r.orgform)}${r.nace_tekst ? ' · ' + esc(r.nace_tekst) : ''}</div>${tilknytningMerke(r)}</td>
+      <td><button class="lenke-knapp selskap-navn" type="button">${esc(r.navn)}</button><div class="under">${esc(r.orgnr)}<span class="kommune-tekst"> · ${esc(r.kommune)}</span> · ${esc(r.orgform)}${r.nace_tekst ? ' · ' + esc(r.nace_tekst) : ''}</div>${tilknytningMerke(r)}</td>
       <td>${esc(r.kommune)}</td>
       <td>${grenseStolpe(r.driftsinntekter, g.driftsinntekter, kr(r.driftsinntekter))}</td>
       <td>${grenseStolpe(r.sum_eiendeler, g.sumEiendeler, kr(r.sum_eiendeler))}</td>
@@ -727,7 +727,7 @@ async function lastListe() {
   $('#rader').innerHTML = data.rader.length ? data.rader.map((r) => `
     <tr data-orgnr="${r.orgnr}" class="${r.ringt ? 'er-ringt' : ''}">
       <td class="smal"><button class="stjerne ${r.prioritet ? 'pa' : ''}" data-handling="prioritet" title="Prioriter" aria-label="Prioriter" aria-pressed="${r.prioritet ? 'true' : 'false'}"><svg viewBox="0 0 24 24" aria-hidden="true">${IKON.stjerne}</svg></button></td>
-      <td><button class="lenke-knapp selskap-navn" type="button">${esc(r.navn)}</button><div class="under">${esc(r.orgnr)} · ${esc(r.orgform)}${r.nace_tekst ? ' · ' + esc(r.nace_tekst) : ''}</div>${tilknytningMerke(r)}</td>
+      <td><button class="lenke-knapp selskap-navn" type="button">${esc(r.navn)}</button><div class="under">${esc(r.orgnr)}<span class="kommune-tekst"> · ${esc(r.kommune)}</span> · ${esc(r.orgform)}${r.nace_tekst ? ' · ' + esc(r.nace_tekst) : ''}</div>${tilknytningMerke(r)}</td>
       <td>${esc(r.kommune)}</td>
       <td class="celle-person"><div>${esc(r.daglig_leder) || '<span class="tom">–</span>'}${r.dl_telefon ? ` <span class="dempet">${ikon('telefon')} ${esc(r.dl_telefon)}</span>` : ''}</div><div class="under">${r.styreleder ? 'Styreleder: ' + esc(r.styreleder) : ''}${r.sl_telefon ? ' · ' + ikon('telefon') + ' ' + esc(r.sl_telefon) : ''}</div></td>
       <td class="celle-person">${r.revisor_navn ? esc(r.revisor_navn) : r.fravalg_revisjon ? '<span class="dempet">Valgt bort</span>' : r.revisjonspliktig ? '<span class="merkelapp m-amber">Ingen – pliktig?</span>' : '<span class="tom">Ingen</span>'}</td>
