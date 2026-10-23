@@ -8,8 +8,11 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap">
+  <link rel="stylesheet" href="/vendor/leaflet/leaflet.css">
   <link rel="stylesheet" href="/style.css">
+  <script src="/vendor/leaflet/leaflet.js" defer></script>
   <script src="/app.js" defer></script>
+  <script src="/kart.js" defer></script>
 </head>
 <body>
   <!-- Innlogging -->
@@ -46,6 +49,10 @@
           <button class="fane" data-fane="selskaper">
             <svg class="ikon fane-ikon" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 21V5a1 1 0 0 1 1-1h9a1 1 0 0 1 1 1v16"/><path d="M15 10h4a1 1 0 0 1 1 1v10"/><path d="M8 8h3M8 12h3M8 16h3M2 21h20"/></svg>
             <span>Selskaper</span>
+          </button>
+          <button class="fane" data-fane="kart">
+            <svg class="ikon fane-ikon" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 21s-7-6.2-7-11.5a7 7 0 0 1 14 0C19 14.8 12 21 12 21z"/><circle cx="12" cy="9.5" r="2.5"/></svg>
+            <span>Kart</span>
           </button>
           <button class="fane" data-fane="plikt">
             <svg class="ikon fane-ikon" viewBox="0 0 24 24" aria-hidden="true"><path d="M5 21V4"/><path d="M5 4h11l-2 4 2 4H5"/></svg>
@@ -171,6 +178,29 @@
             </thead>
             <tbody id="varsel-rader" class="radliste"></tbody>
           </table>
+        </div>
+      </section>
+
+      <!-- Kart -->
+      <section id="fane-kart" class="fane-innhold" hidden>
+        <div class="kart-oppsett">
+          <div class="kort kart-kort">
+            <div id="kart" class="kart" role="region" aria-label="Kart over selskapene i regionen"></div>
+          </div>
+          <aside class="kort kart-panel" aria-label="Valg for kartet">
+            <h2>Vis på kartet</h2>
+            <label class="filter-felt"><span>Gå til kommune</span>
+              <select id="kart-kommune"><option value="">Hele regionen</option></select>
+            </label>
+            <label class="bryter"><input type="checkbox" id="kart-passer"> Bare selskaper som passer for Vatnem</label>
+            <label class="bryter"><input type="checkbox" id="kart-ukontaktet"> Skjul selskaper som er kontaktet</label>
+            <div class="kart-forklaring-topp">
+              <h3>Revisor</h3>
+              <button type="button" class="tekstknapp" id="kart-alle">Vis alle</button>
+            </div>
+            <ul id="kart-forklaring" class="kart-forklaring"></ul>
+            <p id="kart-info" class="dempet kart-info"></p>
+          </aside>
         </div>
       </section>
 

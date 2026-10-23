@@ -448,7 +448,9 @@ async function kjorSynk({ type = 'auto', frist = Date.now() + 240_000, logg = ()
   if (!(await taLas(frist - Date.now() + 60_000))) return { ferdig: false, startet: false, opptatt: true };
   try {
     const iKo = (await db.en('SELECT COUNT(*) n FROM synk_ko')).n;
-    if (!iKo) {
+    // Gjenstår bare kartplassering fra en tidligere kjøring, fortsettes den uten å starte en ny jobb.
+    const bareKart = !iKo && type === 'auto' && (await antallUtenPlassering()) > 0;
+    if (!iKo && !bareKart) {
       let vilFull = type === 'full';
       if (type === 'auto') {
         const sisteFull = await db.en("SELECT ferdig FROM synkroniseringer WHERE status = 'ok' AND COALESCE(type, 'full') = 'full' ORDER BY id DESC LIMIT 1");
@@ -456,7 +458,8 @@ async function kjorSynk({ type = 'auto', frist = Date.now() + 240_000, logg = ()
       }
       if (vilFull) await startFull(logg); else await startEndringer(logg);
     }
-    const ferdig = await arbeid(frist, logg);
+    const koFerdig = await arbeid(frist, logg);
+    const ferdig = koFerdig && await plasserPaaKart(frist, logg);
     if (ferdig) logg('Oppdatering ferdig');
     return { ferdig, startet: true };
   } catch (e) {
@@ -468,12 +471,71 @@ async function kjorSynk({ type = 'auto', frist = Date.now() + 240_000, logg = ()
   }
 }
 
+// --- Plassering på kart (Kartverkets åpne adresse-API) ---------------------------
+// Forretningsadressen slås opp én gang og lagres. Finnes ikke adressen (f.eks. postboks),
+// brukes postnummer, så poststed, så kommune, og plasseringen merkes som omtrentlig.
+const ADRESSE_URL = 'https://ws.geonorge.no/adresser/v1/sok';
+const UTEN_PLASSERING = `aktiv = 1 AND (geo_status IS NULL
+  OR geo_nokkel IS NOT (COALESCE(adresse, '') || '|' || COALESCE(postnr, '') || '|' || COALESCE(kommunenr, '')))`;
+
+const antallUtenPlassering = async () => (await db.en(`SELECT COUNT(*) n FROM selskaper WHERE ${UTEN_PLASSERING}`)).n;
+
+async function finnPunkt(sporring) {
+  const d = await hentJson(`${ADRESSE_URL}?${sporring}&treffPerSide=1&utkoordsys=4258`);
+  const p = d?.adresser?.[0]?.representasjonspunkt;
+  return p && typeof p.lat === 'number' ? { lat: p.lat, lon: p.lon } : null;
+}
+
+async function geokod(r) {
+  const gate = (r.adresse || '').split(',')[0].trim();
+  if (gate && r.postnr && !/post\s*boks|^pb\b|^boks\b|postboks/i.test(gate)) {
+    const p = await finnPunkt(`sok=${encodeURIComponent(gate)}&postnummer=${r.postnr}`);
+    if (p) return { ...p, status: 'adresse' };
+  }
+  if (r.postnr) {
+    const p = await finnPunkt(`postnummer=${r.postnr}`);
+    if (p) return { ...p, status: 'omtrentlig' };
+  }
+  if (r.poststed) {
+    const p = await finnPunkt(`poststed=${encodeURIComponent(r.poststed)}`);
+    if (p) return { ...p, status: 'omtrentlig' };
+  }
+  if (r.kommunenr) {
+    const p = await finnPunkt(`kommunenummer=${r.kommunenr}`);
+    if (p) return { ...p, status: 'omtrentlig' };
+  }
+  return { lat: null, lon: null, status: 'mangler' };
+}
+
+// Plasserer selskaper som mangler koordinater, til alle er plassert eller fristen nås.
+async function plasserPaaKart(frist, logg) {
+  for (;;) {
+    const rader = await db.alle(`SELECT orgnr, adresse, postnr, poststed, kommunenr FROM selskaper WHERE ${UTEN_PLASSERING} LIMIT 120`);
+    if (!rader.length) return true;
+    const oppdateringer = [];
+    await iParallell(rader, SAMTIDIGE_KALL, async (r) => {
+      const g = await geokod(r);
+      oppdateringer.push(['UPDATE selskaper SET lat = ?, lon = ?, geo_status = ?, geo_nokkel = ? WHERE orgnr = ?',
+        [g.lat, g.lon, g.status, `${r.adresse || ''}|${r.postnr || ''}|${r.kommunenr || ''}`, r.orgnr]]);
+    });
+    await db.batch(oppdateringer);
+    const igjen = await antallUtenPlassering();
+    if (igjen % 1000 < 120) logg(`${igjen} selskaper igjen å plassere på kartet`);
+    if (Date.now() > frist) return false;
+  }
+}
+
 // Status for visning i portalen (fra databasen, så den er lik for alle kopier av appen).
 async function synkStatus() {
-  const ko = (await db.en('SELECT COUNT(*) n FROM synk_ko')).n;
-  const las = Number(await lesInnstilling('synk_las')) || 0;
-  const jobb = await db.en("SELECT * FROM synkroniseringer WHERE status = 'kjorer' ORDER BY id DESC LIMIT 1");
-  return { kjorer: ko > 0 || las > Date.now(), ko, jobb, aktivNa: las > Date.now() };
+  const [koRad, lasVerdi, jobb, utenKart, aktive] = await Promise.all([
+    db.en('SELECT COUNT(*) n FROM synk_ko'),
+    lesInnstilling('synk_las'),
+    db.en("SELECT * FROM synkroniseringer WHERE status = 'kjorer' ORDER BY id DESC LIMIT 1"),
+    antallUtenPlassering(),
+    db.en('SELECT COUNT(*) n FROM selskaper WHERE aktiv = 1'),
+  ]);
+  const las = Number(lasVerdi) || 0;
+  return { kjorer: koRad.n > 0 || las > Date.now(), ko: koRad.n, jobb, aktivNa: las > Date.now(), utenKart, aktive: aktive.n };
 }
 
 // --- Detaljer hentet direkte fra Brreg når et selskap åpnes -------------------

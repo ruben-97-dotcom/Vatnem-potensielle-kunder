@@ -20,7 +20,7 @@ app.use((req, res, next) => {
   res.setHeader('X-Content-Type-Options', 'nosniff');
   res.setHeader('X-Frame-Options', 'DENY');
   res.setHeader('Referrer-Policy', 'no-referrer');
-  res.setHeader('Content-Security-Policy', "default-src 'self'; img-src 'self' data:; style-src 'self' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; script-src 'self'; frame-ancestors 'none'");
+  res.setHeader('Content-Security-Policy', "default-src 'self'; img-src 'self' data: https://cache.kartverket.no; style-src 'self' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; script-src 'self'; frame-ancestors 'none'");
   next();
 });
 app.use(express.json({ limit: '50kb' }));
@@ -83,7 +83,7 @@ async function synkVedBehov() {
   if (status.aktivNa) return;
   const siste = await db.en("SELECT ferdig FROM synkroniseringer WHERE status != 'kjorer' ORDER BY id DESC LIMIT 1");
   const gammel = !siste || Date.now() - new Date(siste.ferdig).getTime() > ENDRINGER_INTERVALL_MIN * 60_000;
-  if (status.ko > 0 || gammel) iBakgrunnen(kjorOgFortsett('auto'));
+  if (status.ko > 0 || status.utenKart > 0 || gammel) iBakgrunnen(kjorOgFortsett('auto'));
 }
 
 // --- Innlogging ------------------------------------------------------------------
@@ -523,6 +523,8 @@ app.get('/api/meta', a(async (req, res) => {
     ulesteVarsler(req.bruker.id),
   ]);
   const antall = Object.fromEntries(kommuneRader.map((r) => [r.kommunenr, r.n]));
+  // Køen er tom, men selskaper plasseres fortsatt på kartet.
+  const kartFase = status.aktivNa && status.ko === 0 && status.utenKart > 0;
   res.json({
     kommuner: KOMMUNER.map((k) => ({ ...k, antall: antall[k.nr] || 0 })),
     statuser: STATUSER,
@@ -533,14 +535,46 @@ app.get('/api/meta', a(async (req, res) => {
     synk: {
       kjorer: status.kjorer,
       ko: status.ko,
-      fase: status.jobb ? (status.jobb.type === 'full' ? 'Full oppdatering' : 'Sjekker endringer') : 'Oppdaterer',
-      totalt: status.jobb?.antall || 0,
-      ferdig: status.jobb?.antall ? Math.max(0, status.jobb.antall - status.ko) : 0,
+      fase: kartFase ? 'Plasserer på kart' : status.jobb ? (status.jobb.type === 'full' ? 'Full oppdatering' : 'Sjekker endringer') : 'Oppdaterer',
+      totalt: kartFase ? status.aktive : status.jobb?.antall || 0,
+      ferdig: kartFase ? status.aktive - status.utenKart : status.jobb?.antall ? Math.max(0, status.jobb.antall - status.ko) : 0,
+      utenKart: status.utenKart,
       siste: sisteFull,
       sisteEndringer,
       intervallMin: ENDRINGER_INTERVALL_MIN,
     },
     ulesteVarsler: uleste,
+  });
+}));
+
+// --- Kart ----------------------------------------------------------------------------
+// Kompakt format (lister i stedet for objekter), siden det er over 11 000 selskaper.
+app.get('/api/kart', a(async (req, res) => {
+  const P = VATNEM_PROFIL;
+  const [rader, revisorer, antall] = await Promise.all([
+    db.alle(`SELECT orgnr, navn, lat, lon, geo_status, revisor_orgnr, driftsinntekter, ansatte, status, ringt, er_kunde,
+        roller_hentet, kommunenr, fravalg_revisjon, revisjonspliktig,
+        CASE WHEN driftsinntekter >= ${P.minInntekt} AND driftsinntekter <= ${P.maksInntekt}
+          AND (ansatte IS NULL OR ansatte <= ${P.maksAnsatte}) THEN 1 ELSE 0 END AS passer
+      FROM v_selskaper WHERE aktiv = 1 AND lat IS NOT NULL AND kommunenr IN (${KOMMUNER.map((k) => `'${k.nr}'`).join(',')})`),
+    db.alle(`SELECT revisor_orgnr AS orgnr, revisor_navn AS navn, COUNT(*) antall FROM selskaper
+      WHERE aktiv = 1 AND revisor_orgnr IS NOT NULL GROUP BY revisor_orgnr ORDER BY antall DESC`),
+    db.en(`SELECT COUNT(*) n, SUM(kommunenr NOT IN (${KOMMUNER.map((k) => `'${k.nr}'`).join(',')})) utenfor FROM selskaper WHERE aktiv = 1`),
+  ]);
+  const indeks = new Map(revisorer.map((r, i) => [r.orgnr, i]));
+  const statusIndeks = new Map(STATUSER.map((s, i) => [s.kode, i]));
+  res.json({
+    felt: ['orgnr', 'navn', 'lat', 'lon', 'omtrentlig', 'revisor', 'inntekt', 'ansatte', 'status', 'ringt', 'passer', 'kunde',
+      'kommunenr', 'rollerHentet', 'fravalg', 'pliktig'],
+    rader: rader.map((r) => [
+      r.orgnr, r.navn, Math.round(r.lat * 1e5) / 1e5, Math.round(r.lon * 1e5) / 1e5, r.geo_status === 'adresse' ? 0 : 1,
+      r.revisor_orgnr ? indeks.get(r.revisor_orgnr) : -1, r.driftsinntekter === null ? null : Math.round(r.driftsinntekter / 1000),
+      r.ansatte, statusIndeks.get(r.status) ?? 0, r.ringt, r.passer, r.er_kunde, r.kommunenr, r.roller_hentet, r.fravalg_revisjon,
+      r.revisjonspliktig,
+    ]),
+    revisorer: revisorer.map((r) => [r.orgnr, r.navn, r.antall]),
+    totalt: antall.n,
+    utenfor: antall.utenfor || 0,
   });
 }));
 

@@ -172,7 +172,8 @@ function visSynkBanner(s) {
   el.hidden = !vis;
   if (!vis) return false;
   const pst = s.totalt ? Math.min(100, Math.round((s.ferdig / s.totalt) * 100)) : null;
-  const tittel = full
+  const kartFase = s?.fase === 'Plasserer på kart';
+  const tittel = kartFase ? 'Plasserer selskapene på kartet' : full
     ? (s.totalt ? 'Henter roller og regnskap for alle selskaper fra Brønnøysundregistrene' : 'Henter selskapslisten fra Brønnøysundregistrene')
     : 'Sjekker Brønnøysundregistrene for endringer';
   el.classList.toggle('viktig', full);
@@ -215,11 +216,12 @@ const SIDETITLER = {
   selskaper: ['Selskaper', ''],
   varsler: ['Varsler', 'Portalen sjekker Brønnøysundregistrene jevnlig og varsler når selskaper i området bytter eller mister revisor eller regnskapsfører, når nye selskaper registreres, og når et selskap uten revisor passerer grensen for revisjonsplikt.'],
   plikt: ['Revisjonsplikt', 'Selskaper uten revisor som er over grensen for revisjonsplikt, eller nær den.'],
+  kart: ['Kart', 'Hver prikk er et selskap, farget etter hvem som reviderer det. Klikk på en prikk for detaljer, og se hvor potensialet er og hvem dere kan besøke når dere er i et område.'],
   revisorer: ['Hvem reviderer regionen?', 'Klikk en revisor for å se kundene deres. Selskaper som bytter revisor kommer ofte fra de store kjedene.'],
 };
 
 function byttFane(fane) {
-  if (!['oversikt', 'selskaper', 'varsler', 'plikt', 'revisorer'].includes(fane)) fane = 'oversikt';
+  if (!['oversikt', 'selskaper', 'kart', 'varsler', 'plikt', 'revisorer'].includes(fane)) fane = 'oversikt';
   tilstand.fane = fane;
   history.replaceState(null, '', '#' + fane);
   for (const b of $$('.fane, .bjelle')) {
@@ -238,6 +240,7 @@ function byttFane(fane) {
   if (fane === 'revisorer') lastRevisorer();
   if (fane === 'varsler') lastVarsler();
   if (fane === 'plikt') lastPlikt();
+  if (fane === 'kart') lastKart();
 }
 $$('[data-gaa]').forEach((b) => b.addEventListener('click', (e) => { e.preventDefault(); byttFane(b.dataset.gaa); }));
 

@@ -47,6 +47,18 @@ underveis (for eksempel «Ringe 50 selskaper» eller «10 møter»). Målene set
 felles for alle brukere. Fremdriften regnes fra statusene: et selskap som har kommet lenger i løypa teller også på
 de tidligere stegene. Uten delmål viser fjellet salgstrakten (basecamp, ringt, interessert, møte, tilbud, vunnet).
 
+### Kart
+
+Fanen **Kart** viser hvert selskap som en prikk, farget etter hvem som reviderer det: Vatnem i oransje, selskaper
+uten revisor i grønt (potensialet), de største konkurrentene i hver sin farge og resten som «Andre revisorer».
+Klikk på en prikk for nøkkeltall og status, og åpne selskapet derfra. Til høyre kan dere gå til en kommune, vise
+bare selskaper som passer for Vatnem, skjule de som er kontaktet, og slå revisorer av og på.
+
+Forretningsadressen slås opp i Kartverkets åpne adresse-API én gang og lagres. Finnes ikke adressen (for eksempel
+en postboks), plasseres selskapet omtrentlig på postnummer, poststed eller kommune, og prikken får svakere farge.
+Selskaper med forretningsadresse utenfor de 11 kommunene vises ikke på kartet. Kartbakgrunnen er Kartverkets
+grå topografiske kart, og kartet bruker Leaflet (ligger i `public/vendor/leaflet`).
+
 ### Varsler
 
 Fanen **Varsler** (med teller for uleste) viser:
@@ -168,4 +180,5 @@ Lokalt bruker appen fortsatt fila `data/portal.db`, med mindre `TURSO_DATABASE_U
 - `src/auth.js`: innlogging, økter og sperre mot gjetting (alt i databasen)
 - `src/db.js`: database via libSQL – Turso i skyen eller lokal SQLite-fil
 - `scripts/migrer-til-turso.js`: kopierer lokale data til Turso
+- `public/kart.js`: kart-fanen
 - `public/`: grensesnittet (HTML, CSS og JavaScript uten rammeverk)

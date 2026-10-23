@@ -50,7 +50,7 @@ async function batch(setninger) {
 
 // --- Skjema --------------------------------------------------------------------
 // Øk versjonen når tabeller eller visningen endres; da kjøres oppsettet på nytt.
-const SKJEMA_VERSJON = '9';
+const SKJEMA_VERSJON = '10';
 
 const TABELLER = `
   CREATE TABLE IF NOT EXISTS selskaper (
@@ -60,7 +60,7 @@ const TABELLER = `
     revisor_navn TEXT, revisor_orgnr TEXT, regnskapsforer_navn TEXT, regnskapsforer_orgnr TEXT,
     regnskap_aar INTEGER, driftsinntekter REAL, driftsresultat REAL, aarsresultat REAL, egenkapital REAL,
     sum_eiendeler REAL, fravalg_revisjon INTEGER, roller_hentet INTEGER DEFAULT 0, regnskap_hentet INTEGER DEFAULT 0,
-    aktiv INTEGER DEFAULT 1, oppdatert TEXT, sum_gjeld REAL
+    aktiv INTEGER DEFAULT 1, oppdatert TEXT, sum_gjeld REAL, lat REAL, lon REAL, geo_status TEXT, geo_nokkel TEXT
   );
   CREATE INDEX IF NOT EXISTS idx_selskaper_kommune ON selskaper(kommunenr);
   CREATE INDEX IF NOT EXISTS idx_selskaper_revisor ON selskaper(revisor_orgnr);
@@ -141,6 +141,10 @@ const VISNING = `
 // Kolonner som er lagt til etter første versjon (for eldre lokale databaser).
 const NYE_KOLONNER = [
   ['selskaper', 'sum_gjeld', 'REAL'],
+  ['selskaper', 'lat', 'REAL'],
+  ['selskaper', 'lon', 'REAL'],
+  ['selskaper', 'geo_status', 'TEXT'],
+  ['selskaper', 'geo_nokkel', 'TEXT'],
   ['brukere', 'varsler_sett', 'TEXT'],
   ['synkroniseringer', 'type', "TEXT DEFAULT 'full'"],
   ['oppfolging', 'dl_telefon', 'TEXT'],
