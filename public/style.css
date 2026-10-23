@@ -819,3 +819,52 @@ main:has(#fane-selskaper:not([hidden])), main:has(#fane-plikt:not([hidden])) { m
   .kart-tall-brikke:nth-child(3) { display: none; }
 }
 .kart-hint { font-size: 11px; font-weight: 500; letter-spacing: 0; text-transform: none; margin-left: 6px; }
+
+/* --- Kart på hele siden, med panelet som overlegg --------------------------------- */
+.kart-modus main { max-width: none; padding: 0; }
+.kart-modus #hero-side { display: none !important; }
+.kart-modus .synk-banner { margin-bottom: 12px; }
+.kart-oppsett { display: block; position: relative; }
+.kart-ramme { border-radius: 0; box-shadow: none; }
+.kart { height: calc(100dvh - var(--kart-topp, 80px)); min-height: 420px; }
+.kart-overlegg-topp { top: 16px; left: 16px; right: 416px; }
+.kart-panel {
+  position: absolute; top: 16px; right: 16px; bottom: 16px; width: 380px; z-index: 3; margin: 0; overflow-y: auto; max-height: none;
+  background: rgba(255, 255, 255, 0.95); backdrop-filter: blur(10px); border-radius: 24px; padding: 22px;
+  box-shadow: 0 10px 30px rgba(26, 43, 43, 0.18);
+}
+.kart-panel.lukket { bottom: auto; overflow: hidden; }
+.kart-panel.lukket .kart-panel-innhold { display: none; }
+.kart-panel.lukket .kart-panel-topp { cursor: pointer; }
+.kart-panel-topp { display: flex; justify-content: space-between; align-items: flex-start; gap: 12px; }
+.kart-panel-topp h2 { margin: 4px 0 0; font-size: 22px; }
+.kart-panel-innhold { margin-top: 16px; }
+.kart-panel-knapp {
+  width: 40px; height: 40px; border-radius: 50%; border: 0; background: var(--bg); color: var(--ink);
+  display: grid; place-items: center; cursor: pointer; flex: none;
+}
+.kart-panel-knapp:hover { background: var(--line); }
+.kart-panel-knapp .ikon { width: 20px; height: 20px; transition: transform .2s; }
+.kart-panel.lukket .kart-panel-knapp .ikon { transform: rotate(180deg); }
+.leaflet-left .leaflet-control { margin-left: 16px; }
+.leaflet-bottom .leaflet-control { margin-bottom: 16px; }
+.leaflet-bottom .leaflet-control-attribution { margin-bottom: 0; border-radius: 0 var(--r-pille) 0 0; }
+
+@media (max-width: 1023px) {
+  .kart-oppsett { display: block; }
+  .kart-panel { position: absolute; width: 340px; max-height: none; }
+  .kart { height: calc(100dvh - var(--kart-topp, 80px)); min-height: 380px; }
+  .kart-overlegg-topp { right: 372px; }
+}
+@media (max-width: 700px) {
+  /* Kartet over menyen nederst, panelet som et ark nederst på kartet. */
+  .kart { height: calc(100dvh - var(--kart-topp, 70px) - 72px - env(safe-area-inset-bottom)); min-height: 320px; }
+  .kart-modus main { padding-bottom: 0; }
+  .kart-overlegg-topp { left: 10px; right: 10px; top: 10px; }
+  .kart-panel { top: auto; left: 10px; right: 10px; bottom: 10px; width: auto; max-height: 62%; border-radius: 22px; padding: 14px 16px; }
+  .kart-panel.lukket { bottom: 10px; top: auto; }
+  .kart-panel-topp h2 { font-size: 18px; }
+  .kart-panel-topp .kicker { font-size: 11px; }
+  .kart-modus .leaflet-control-zoom { display: none; }
+  .leaflet-bottom.leaflet-left { bottom: 84px; }
+}

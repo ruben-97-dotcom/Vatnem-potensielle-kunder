@@ -188,28 +188,37 @@
             <div id="kart" class="kart" role="region" aria-label="Kart over selskapene i regionen"></div>
             <div class="kart-overlegg kart-overlegg-topp" id="kart-tall" aria-live="polite"></div>
           </div>
-          <aside class="kort kart-panel" aria-label="I dette området">
-            <div class="kicker">I dette området</div>
-            <h2 id="kart-omrade-tittel">Kartutsnittet</h2>
-            <label class="filter-felt"><span>Gå til kommune</span>
-              <select id="kart-kommune"><option value="">Hele regionen</option></select>
-            </label>
-            <label class="bryter bryter-switch"><input type="checkbox" id="kart-passer"><span>Bare selskaper som passer for Vatnem</span></label>
-            <label class="bryter bryter-switch"><input type="checkbox" id="kart-ukontaktet"><span>Skjul selskaper som er kontaktet</span></label>
+          <aside class="kart-panel" id="kart-panel" aria-label="I dette området">
+            <div class="kart-panel-topp">
+              <div>
+                <div class="kicker">I dette området</div>
+                <h2 id="kart-omrade-tittel">Kartutsnittet</h2>
+              </div>
+              <button type="button" id="kart-panel-knapp" class="kart-panel-knapp" aria-expanded="true" aria-controls="kart-panel-innhold" aria-label="Skjul panelet">
+                <svg class="ikon" viewBox="0 0 24 24" aria-hidden="true"><path d="m6 9 6 6 6-6"/></svg>
+              </button>
+            </div>
+            <div class="kart-panel-innhold" id="kart-panel-innhold">
+              <label class="filter-felt"><span>Gå til kommune</span>
+                <select id="kart-kommune"><option value="">Hele regionen</option></select>
+              </label>
+              <label class="bryter bryter-switch"><input type="checkbox" id="kart-passer"><span>Bare selskaper som passer for Vatnem</span></label>
+              <label class="bryter bryter-switch"><input type="checkbox" id="kart-ukontaktet"><span>Skjul selskaper som er kontaktet</span></label>
 
-            <div class="kart-seksjon">
-              <h3>Revisorer <span class="dempet kart-hint">klikk for å skjule</span></h3>
-              <div class="kart-chips" id="kart-forklaring"></div>
+              <div class="kart-seksjon">
+                <h3>Revisorer <span class="dempet kart-hint">klikk for å skjule</span></h3>
+                <div class="kart-chips" id="kart-forklaring"></div>
+              </div>
+              <div class="kart-seksjon">
+                <h3>Beste muligheter her</h3>
+                <ol id="kart-muligheter" class="kart-liste"></ol>
+              </div>
+              <div class="kart-seksjon">
+                <h3>Våre kunder her</h3>
+                <ul id="kart-kunder" class="kart-liste"></ul>
+              </div>
+              <p id="kart-info" class="dempet kart-info"></p>
             </div>
-            <div class="kart-seksjon">
-              <h3>Beste muligheter her</h3>
-              <ol id="kart-muligheter" class="kart-liste"></ol>
-            </div>
-            <div class="kart-seksjon">
-              <h3>Våre kunder her</h3>
-              <ul id="kart-kunder" class="kart-liste"></ul>
-            </div>
-            <p id="kart-info" class="dempet kart-info"></p>
           </aside>
         </div>
       </section>

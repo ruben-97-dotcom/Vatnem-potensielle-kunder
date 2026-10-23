@@ -229,6 +229,8 @@ function byttFane(fane) {
     if (b.dataset.fane === fane) b.setAttribute('aria-current', 'page'); else b.removeAttribute('aria-current');
   }
   for (const s of $$('.fane-innhold')) s.hidden = s.id !== 'fane-' + fane;
+  // Kartet vises på hele siden.
+  document.body.classList.toggle('kart-modus', fane === 'kart');
   $('#hero-oversikt').hidden = fane !== 'oversikt';
   $('#hero-side').hidden = fane === 'oversikt';
   if (fane !== 'oversikt') {

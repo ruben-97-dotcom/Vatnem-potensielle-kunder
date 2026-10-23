@@ -35,13 +35,14 @@ function radiusFor(gruppe, zoom) {
 
 function initKart() {
   const k = L.map('kart', { preferCanvas: true, zoomControl: false, attributionControl: true }).setView([59.55, 5.6], 9);
-  L.control.zoom({ position: 'topright', zoomInTitle: 'Zoom inn', zoomOutTitle: 'Zoom ut' }).addTo(k);
+  L.control.zoom({ position: 'bottomleft', zoomInTitle: 'Zoom inn', zoomOutTitle: 'Zoom ut' }).addTo(k);
   L.tileLayer('https://cache.kartverket.no/v1/wmts/1.0.0/topograatone/default/webmercator/{z}/{y}/{x}.png', {
     maxZoom: 18,
     className: 'kart-fliser',
     attribution: '© <a href="https://www.kartverket.no/" target="_blank" rel="noopener noreferrer">Kartverket</a>',
   }).addTo(k);
   k.attributionControl.setPrefix(false);
+  k.attributionControl.setPosition('bottomleft');
   kartTilstand.kart = k;
   kartTilstand.lag = L.layerGroup().addTo(k);
 
@@ -72,12 +73,46 @@ function initKart() {
     oppdaterOmrade();
   });
   k.on('moveend', oppdaterOmrade);
+
+  // Panelet kan skjules. På mobil starter det sammenslått, så kartet får plass.
+  const panel = $('#kart-panel');
+  const knapp = $('#kart-panel-knapp');
+  const settPanel = (apen) => {
+    panel.classList.toggle('lukket', !apen);
+    knapp.setAttribute('aria-expanded', String(apen));
+    knapp.setAttribute('aria-label', apen ? 'Skjul panelet' : 'Vis panelet');
+  };
+  settPanel(window.innerWidth > 700);
+  knapp.addEventListener('click', () => settPanel(panel.classList.contains('lukket')));
+  $('.kart-panel-topp').addEventListener('click', (e) => {
+    if (e.target.closest('#kart-panel-knapp')) return;
+    if (panel.classList.contains('lukket')) settPanel(true);
+  });
+
+  // Kartet fyller høyden under menyen (og banneret, når det vises).
+  const toppfelt = $('.toppfelt');
+  const settHoyde = () => {
+    document.documentElement.style.setProperty('--kart-topp', toppfelt.offsetHeight + 'px');
+    k.invalidateSize();
+  };
+  new ResizeObserver(settHoyde).observe(toppfelt);
+  window.addEventListener('resize', settHoyde);
+  settHoyde();
 }
 
 function zoomTilKommune() {
   const nr = $('#kart-kommune').value;
   const punkter = kartTilstand.data.rader.filter((r) => !nr || r[K.kommunenr] === nr).map((r) => [r[K.lat], r[K.lon]]);
-  if (punkter.length) kartTilstand.kart.flyToBounds(L.latLngBounds(punkter), { padding: [40, 40], maxZoom: 13, duration: 0.8 });
+  if (!punkter.length) return;
+  // Ta hensyn til panelet, så prikkene havner i den synlige delen av kartet.
+  const panel = $('#kart-panel');
+  const apen = !panel.classList.contains('lukket');
+  const mobil = window.innerWidth <= 700;
+  const hoyre = !mobil && apen ? panel.offsetWidth + 40 : 40;
+  const bunn = mobil ? panel.offsetHeight + 30 : 40;
+  kartTilstand.kart.flyToBounds(L.latLngBounds(punkter), {
+    paddingTopLeft: [40, 80], paddingBottomRight: [hoyre, bunn], maxZoom: 13, duration: 0.8,
+  });
 }
 
 function gaTilSelskap(orgnr) {
@@ -86,7 +121,7 @@ function gaTilSelskap(orgnr) {
   const k = kartTilstand.kart;
   k.flyTo(m.getLatLng(), Math.max(k.getZoom(), 14), { duration: 0.7 });
   k.once('moveend', () => m.openPopup());
-  if (window.innerWidth < 1024) $('#kart').scrollIntoView({ behavior: 'smooth', block: 'center' });
+  if (window.innerWidth <= 700) $('#kart-panel-knapp').click();
 }
 
 async function lastKart() {
