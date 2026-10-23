@@ -216,12 +216,13 @@ const SIDETITLER = {
   selskaper: ['Selskaper', ''],
   varsler: ['Varsler', 'Portalen sjekker Brønnøysundregistrene jevnlig og varsler når selskaper i området bytter eller mister revisor eller regnskapsfører, når nye selskaper registreres, og når et selskap uten revisor passerer grensen for revisjonsplikt.'],
   plikt: ['Revisjonsplikt', 'Selskaper uten revisor som er over grensen for revisjonsplikt, eller nær den.'],
+  potensielle: ['Mest potensielle kunder', 'Favorittene deres øverst, og forslagene som passer best for Vatnem under – med hvorfor de er interessante. Trykk på stjernen for å gjøre et selskap til favoritt.'],
   kart: ['Kart', 'Hver prikk er et selskap, farget etter hvem som reviderer det. Klikk på en prikk for detaljer, og se hvor potensialet er og hvem dere kan besøke når dere er i et område.'],
   revisorer: ['Hvem reviderer regionen?', 'Klikk en revisor for å se kundene deres. Selskaper som bytter revisor kommer ofte fra de store kjedene.'],
 };
 
 function byttFane(fane) {
-  if (!['oversikt', 'selskaper', 'kart', 'varsler', 'plikt', 'revisorer'].includes(fane)) fane = 'oversikt';
+  if (!['oversikt', 'selskaper', 'potensielle', 'kart', 'varsler', 'plikt', 'revisorer'].includes(fane)) fane = 'oversikt';
   tilstand.fane = fane;
   history.replaceState(null, '', '#' + fane);
   for (const b of $$('.fane, .bjelle')) {
@@ -243,6 +244,7 @@ function byttFane(fane) {
   if (fane === 'varsler') lastVarsler();
   if (fane === 'plikt') lastPlikt();
   if (fane === 'kart') lastKart();
+  if (fane === 'potensielle') lastPotensielle();
 }
 $$('[data-gaa]').forEach((b) => b.addEventListener('click', (e) => { e.preventDefault(); byttFane(b.dataset.gaa); }));
 
@@ -1166,6 +1168,7 @@ function lukkPanel() {
   tilstand.apentOrgnr = null;
   if (tilstand.fane === 'selskaper') lastListe();
   if (tilstand.fane === 'oversikt') lastOversikt();
+  if (tilstand.fane === 'potensielle') lastPotensielle();
 }
 $('#panel-bakgrunn').addEventListener('click', lukkPanel);
 document.addEventListener('keydown', (e) => { if (e.key === 'Escape' && !$('#panel').hidden) lukkPanel(); });

@@ -13,6 +13,7 @@
   <script src="/vendor/leaflet/leaflet.js" defer></script>
   <script src="/app.js" defer></script>
   <script src="/kart.js" defer></script>
+  <script src="/potensielle.js" defer></script>
 </head>
 <body>
   <!-- Innlogging -->
@@ -49,6 +50,10 @@
           <button class="fane" data-fane="selskaper">
             <svg class="ikon fane-ikon" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 21V5a1 1 0 0 1 1-1h9a1 1 0 0 1 1 1v16"/><path d="M15 10h4a1 1 0 0 1 1 1v10"/><path d="M8 8h3M8 12h3M8 16h3M2 21h20"/></svg>
             <span>Selskaper</span>
+          </button>
+          <button class="fane" data-fane="potensielle">
+            <svg class="ikon fane-ikon" viewBox="0 0 24 24" aria-hidden="true"><path d="m12 3 2.7 5.6 6.1.9-4.4 4.3 1 6.1L12 17l-5.4 2.9 1-6.1-4.4-4.3 6.1-.9z"/></svg>
+            <span class="fane-lang">Potensielle</span><span class="fane-kort">Topp</span>
           </button>
           <button class="fane" data-fane="plikt">
             <svg class="ikon fane-ikon" viewBox="0 0 24 24" aria-hidden="true"><path d="M5 21V4"/><path d="M5 4h11l-2 4 2 4H5"/></svg>
@@ -121,7 +126,7 @@
               <button class="pille-knapp" data-snarvei="mine-forfalte">Mine forfalte oppfølginger</button>
               <button class="pille-knapp" data-snarvei="plikt-uten">Revisjonspliktige uten revisor</button>
               <button class="pille-knapp" data-snarvei="har-revisor">Har revisor i dag (byttekandidater)</button>
-              <button class="pille-knapp" data-snarvei="prioritert">Prioriterte</button>
+              <button class="pille-knapp" data-gaa="potensielle">Favoritter og beste forslag</button>
               <button class="pille-knapp" data-snarvei="kunder">Eksisterende Vatnem-kunder</button>
               <button class="pille-knapp" data-snarvei="vatnem-nettverk">Felles personer med Vatnem-kunder <span id="antall-nettverk" class="pille-tall"></span></button>
               <button class="pille-knapp" data-snarvei="nye30">Nye selskaper siste 30 dager <span id="antall-nye" class="pille-tall"></span></button>
@@ -178,6 +183,32 @@
             </thead>
             <tbody id="varsel-rader" class="radliste"></tbody>
           </table>
+        </div>
+      </section>
+
+      <!-- Potensielle kunder -->
+      <section id="fane-potensielle" class="fane-innhold" hidden>
+        <div class="pot-seksjon">
+          <div class="pot-topp">
+            <div>
+              <div class="kicker">Favoritter</div>
+              <h2>Deres utvalgte <span id="pot-fav-antall" class="pille-tall"></span></h2>
+            </div>
+            <p class="dempet">Trykk på stjernen på et selskap for å legge det her.</p>
+          </div>
+          <div id="pot-favoritter" class="pot-rutenett"></div>
+        </div>
+        <div class="pot-seksjon">
+          <div class="pot-topp">
+            <div>
+              <div class="kicker">Forslag fra portalen</div>
+              <h2>Mest potensielle for Vatnem</h2>
+            </div>
+            <p class="dempet" id="pot-forslag-antall"></p>
+          </div>
+          <div class="chips pot-filter" id="pot-filter"></div>
+          <div id="pot-forslag" class="pot-rutenett"></div>
+          <div class="pot-mer"><button type="button" id="pot-mer" class="knapp sekundar">Vis flere</button></div>
         </div>
       </section>
 
