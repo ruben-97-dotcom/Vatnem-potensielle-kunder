@@ -728,6 +728,7 @@ $('#aktive-filtre').addEventListener('click', (e) => {
 function visFlereFiltre(apen) {
   $('#filter-flere').hidden = !apen;
   $('#flere-filtre').setAttribute('aria-expanded', String(apen));
+  $('#flere-filtre-tekst').textContent = apen ? 'Skjul filtre' : 'Flere filtre';
   try { localStorage.setItem('flere-filtre', apen ? '1' : '0'); } catch {}
 }
 $('#flere-filtre').addEventListener('click', () => visFlereFiltre($('#filter-flere').hidden));
