@@ -14,7 +14,8 @@ const vent = (ms) => new Promise((r) => setTimeout(r, ms));
 async function hentJson(url) {
   for (let forsok = 1; ; forsok++) {
     try {
-      const res = await fetch(url, { headers: { Accept: 'application/json' } });
+      // Tidsgrense, så et kall som henger ikke blokkerer hele oppdateringen.
+      const res = await fetch(url, { headers: { Accept: 'application/json' }, signal: AbortSignal.timeout(15000) });
       if (res.status === 404 || res.status === 410) return null; // 410 = slettet
       if (res.ok) return await res.json();
       if (res.status !== 429 && res.status < 500) throw new Error(`HTTP ${res.status} for ${url}`);
