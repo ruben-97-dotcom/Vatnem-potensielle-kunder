@@ -5,14 +5,17 @@
   "description": "Portal for oppfølging av potensielle kunder for Vatnem Revisjon",
   "main": "src/server.js",
   "engines": {
-    "node": ">=22.13"
+    "node": ">=22"
   },
   "scripts": {
     "start": "node --env-file-if-exists=.env src/server.js",
-    "hent-data": "node scripts/hent-data.js",
-    "legg-til-bruker": "node --env-file-if-exists=.env scripts/legg-til-bruker.js"
+    "hent-data": "node --env-file-if-exists=.env scripts/hent-data.js",
+    "legg-til-bruker": "node --env-file-if-exists=.env scripts/legg-til-bruker.js",
+    "migrer": "node --env-file-if-exists=.env scripts/migrer-til-turso.js"
   },
   "dependencies": {
+    "@libsql/client": "^0.18.0",
+    "@vercel/functions": "^3.10.3",
     "express": "^4.22.3"
   }
 }

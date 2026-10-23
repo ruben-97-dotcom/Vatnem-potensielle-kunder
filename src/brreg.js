@@ -7,7 +7,7 @@ const ENHETER_URL = 'https://data.brreg.no/enhetsregisteret/api/enheter';
 const REGNSKAP_URL = 'https://data.brreg.no/regnskapsregisteret/regnskap';
 const SAMTIDIGE_KALL = 6;
 
-const status = { kjorer: false, type: null, fase: null, ferdig: 0, totalt: 0, startet: null, feil: 0 };
+
 
 const vent = (ms) => new Promise((r) => setTimeout(r, ms));
 
@@ -111,32 +111,34 @@ function tolkRegnskap(liste) {
   };
 }
 
-const lagreEnhet = db.prepare(`
-  INSERT INTO selskaper (orgnr, navn, orgform, kommune, kommunenr, adresse, postnr, poststed, nace_kode, nace_tekst,
-    ansatte, stiftet, telefon, mobil, epost, hjemmeside, i_konsern, aktiv, oppdatert)
-  VALUES (:orgnr, :navn, :orgform, :kommune, :kommunenr, :adresse, :postnr, :poststed, :nace_kode, :nace_tekst,
-    :ansatte, :stiftet, :telefon, :mobil, :epost, :hjemmeside, :i_konsern, 1, :oppdatert)
-  ON CONFLICT(orgnr) DO UPDATE SET navn=excluded.navn, orgform=excluded.orgform, kommune=excluded.kommune,
-    kommunenr=excluded.kommunenr, adresse=excluded.adresse, postnr=excluded.postnr, poststed=excluded.poststed,
-    nace_kode=excluded.nace_kode, nace_tekst=excluded.nace_tekst, ansatte=excluded.ansatte, stiftet=excluded.stiftet,
-    telefon=excluded.telefon, mobil=excluded.mobil, epost=excluded.epost, hjemmeside=excluded.hjemmeside,
-    i_konsern=excluded.i_konsern, aktiv=1, oppdatert=excluded.oppdatert
-`);
+// ============================================================================
+// Oppdatering mot Brreg med kø i databasen.
+// Arbeidet legges i tabellen synk_ko og behandles innenfor en tidsfrist. Når fristen
+// nås, fortsetter neste kjøring der den slapp (viktig på Vercel, der funksjoner har
+// begrenset kjøretid). En lås i databasen hindrer at to kjøringer jobber samtidig.
+// ============================================================================
 
-const lagreRoller = db.prepare(`
-  UPDATE selskaper SET daglig_leder=:daglig_leder, styreleder=:styreleder, revisor_navn=:revisor_navn,
-    revisor_orgnr=:revisor_orgnr, regnskapsforer_navn=:regnskapsforer_navn, regnskapsforer_orgnr=:regnskapsforer_orgnr,
-    roller_hentet=1 WHERE orgnr=:orgnr
-`);
+const ENHET_KOLONNER = ['orgnr', 'navn', 'orgform', 'kommune', 'kommunenr', 'adresse', 'postnr', 'poststed', 'nace_kode',
+  'nace_tekst', 'ansatte', 'stiftet', 'telefon', 'mobil', 'epost', 'hjemmeside', 'i_konsern', 'oppdatert'];
+const ENHET_OPPDATER = `ON CONFLICT(orgnr) DO UPDATE SET navn=excluded.navn, orgform=excluded.orgform, kommune=excluded.kommune,
+  kommunenr=excluded.kommunenr, adresse=excluded.adresse, postnr=excluded.postnr, poststed=excluded.poststed,
+  nace_kode=excluded.nace_kode, nace_tekst=excluded.nace_tekst, ansatte=excluded.ansatte, stiftet=excluded.stiftet,
+  telefon=excluded.telefon, mobil=excluded.mobil, epost=excluded.epost, hjemmeside=excluded.hjemmeside,
+  i_konsern=excluded.i_konsern, aktiv=1, oppdatert=excluded.oppdatert`;
 
-const lagreRegnskap = db.prepare(`
-  UPDATE selskaper SET regnskap_aar=:regnskap_aar, driftsinntekter=:driftsinntekter, driftsresultat=:driftsresultat,
-    aarsresultat=:aarsresultat, egenkapital=:egenkapital, sum_eiendeler=:sum_eiendeler, sum_gjeld=:sum_gjeld,
-    fravalg_revisjon=:fravalg_revisjon, regnskap_hentet=1 WHERE orgnr=:orgnr
-`);
+// Én INSERT med mange rader (raskere mot en database i skyen).
+function lagreEnheterSql(rader) {
+  const plass = rader.map(() => `(${ENHET_KOLONNER.map(() => '?').join(',')}, 1)`).join(',');
+  const args = rader.flatMap((r) => ENHET_KOLONNER.map((k) => r[k]));
+  return [`INSERT INTO selskaper (${ENHET_KOLONNER.join(',')}, aktiv) VALUES ${plass} ${ENHET_OPPDATER}`, args];
+}
 
-const slettPersonroller = db.prepare('DELETE FROM personroller WHERE orgnr = ?');
-const lagrePersonrolle = db.prepare('INSERT INTO personroller (orgnr, rolle, navn, person_nokkel) VALUES (:orgnr, :rolle, :navn, :person_nokkel)');
+const SQL_ROLLER = `UPDATE selskaper SET daglig_leder=:daglig_leder, styreleder=:styreleder, revisor_navn=:revisor_navn,
+  revisor_orgnr=:revisor_orgnr, regnskapsforer_navn=:regnskapsforer_navn, regnskapsforer_orgnr=:regnskapsforer_orgnr,
+  roller_hentet=1 WHERE orgnr=:orgnr`;
+const SQL_REGNSKAP = `UPDATE selskaper SET regnskap_aar=:regnskap_aar, driftsinntekter=:driftsinntekter, driftsresultat=:driftsresultat,
+  aarsresultat=:aarsresultat, egenkapital=:egenkapital, sum_eiendeler=:sum_eiendeler, sum_gjeld=:sum_gjeld,
+  fravalg_revisjon=:fravalg_revisjon, regnskap_hentet=1 WHERE orgnr=:orgnr`;
 
 function enhetTilRad(e, naa) {
   const a = e.forretningsadresse || e.postadresse || {};
@@ -176,53 +178,49 @@ async function hentEnheterForKommune(kommunenr) {
 
 async function iParallell(elementer, antall, fn) {
   let i = 0;
-  const arbeidere = Array.from({ length: antall }, async () => {
+  let feil = 0;
+  await Promise.all(Array.from({ length: antall }, async () => {
     while (i < elementer.length) {
       const el = elementer[i++];
-      try {
-        await fn(el);
-      } catch (e) {
-        status.feil++;
-        console.error(e.message);
-      }
-      status.ferdig++;
+      try { await fn(el); } catch (e) { feil++; console.error('[synk]', e.message); }
     }
-  });
-  await Promise.all(arbeidere);
+  }));
+  return feil;
 }
 
+const deler = (liste, n) => Array.from({ length: Math.ceil(liste.length / n) }, (_, i) => liste.slice(i * n, i * n + n));
+
 // --- Innstillinger (posisjon i Brregs endringsfeeder) -----------------------
-const lesInnstilling = (n) => db.prepare('SELECT verdi FROM innstillinger WHERE nokkel = ?').get(n)?.verdi ?? null;
-const settInnstilling = (n, v) => db.prepare(`INSERT INTO innstillinger (nokkel, verdi) VALUES (?, ?)
-  ON CONFLICT(nokkel) DO UPDATE SET verdi = excluded.verdi`).run(n, String(v));
+const lesInnstilling = async (n) => (await db.en('SELECT verdi FROM innstillinger WHERE nokkel = ?', [n]))?.verdi ?? null;
+const settInnstillingSql = (n, v) => [`INSERT INTO innstillinger (nokkel, verdi) VALUES (?, ?)
+  ON CONFLICT(nokkel) DO UPDATE SET verdi = excluded.verdi`, [n, String(v)]];
 
 // --- Hendelser ---------------------------------------------------------------
-const nyHendelse = db.prepare('INSERT INTO hendelser (orgnr, type, tekst, tidspunkt) VALUES (?, ?, ?, ?)');
-const hentLagret = db.prepare(`SELECT orgnr, aktiv, roller_hentet, revisor_navn, revisor_orgnr,
-  regnskapsforer_navn, regnskapsforer_orgnr FROM selskaper WHERE orgnr = ?`);
+const hendelseSql = (orgnr, type, tekst, naa = new Date().toISOString()) =>
+  ['INSERT INTO hendelser (orgnr, type, tekst, tidspunkt) VALUES (?, ?, ?, ?)', [orgnr, type, tekst, naa]];
+const hentLagret = (orgnr) => db.en(`SELECT orgnr, aktiv, roller_hentet, revisor_navn, revisor_orgnr,
+  regnskapsforer_navn, regnskapsforer_orgnr FROM selskaper WHERE orgnr = ?`, [orgnr]);
 
 function sammenlignRoller(orgnr, gml, ny) {
-  const naa = new Date().toISOString();
-  const par = [
-    ['revisor', 'revisor', 'Revisor'],
-    ['regnskapsforer', 'regnskapsfører', 'Regnskapsfører'],
-  ];
+  const ut = [];
+  const par = [['revisor', 'revisor', 'Revisor'], ['regnskapsforer', 'regnskapsfører', 'Regnskapsfører']];
   for (const [felt, ord, Ord] of par) {
     const fra = gml[`${felt}_orgnr`] || gml[`${felt}_navn`];
     const til = ny[`${felt}_orgnr`] || ny[`${felt}_navn`];
     if (fra === til) continue;
     const fraNavn = gml[`${felt}_navn`];
     const tilNavn = ny[`${felt}_navn`];
-    if (fra && !til) nyHendelse.run(orgnr, `${felt}_fratradt`, `${Ord} ${fraNavn} har gått av. Selskapet har ingen ${ord} registrert nå.`, naa);
-    else if (!fra && til) nyHendelse.run(orgnr, `${felt}_ny`, `Har fått ny ${ord}: ${tilNavn}`, naa);
-    else nyHendelse.run(orgnr, `${felt}_byttet`, `Byttet ${ord} fra ${fraNavn} til ${tilNavn}`, naa);
+    if (fra && !til) ut.push(hendelseSql(orgnr, `${felt}_fratradt`, `${Ord} ${fraNavn} har gått av. Selskapet har ingen ${ord} registrert nå.`));
+    else if (!fra && til) ut.push(hendelseSql(orgnr, `${felt}_ny`, `Har fått ny ${ord}: ${tilNavn}`));
+    else ut.push(hendelseSql(orgnr, `${felt}_byttet`, `Byttet ${ord} fra ${fraNavn} til ${tilNavn}`));
   }
+  return ut;
 }
 
 // --- Revisjonsplikt -----------------------------------------------------------
-// Samme regel som visningen i server.js: inntekt, balanse eller ansatte over grensen.
-const pliktRad = db.prepare(`SELECT orgnr, orgform, driftsinntekter, sum_eiendeler, ansatte, fravalg_revisjon,
-  revisor_orgnr, regnskap_hentet, aktiv FROM selskaper WHERE orgnr = ?`);
+// Samme regel som visningen i db.js: inntekt, balanse eller ansatte over grensen.
+const pliktRad = (orgnr) => db.en(`SELECT orgnr, orgform, driftsinntekter, sum_eiendeler, ansatte, fravalg_revisjon,
+  revisor_orgnr, regnskap_hentet, aktiv FROM selskaper WHERE orgnr = ?`, [orgnr]);
 const T = REVISJONSPLIKT;
 
 function pliktGrunner(r) {
@@ -236,13 +234,13 @@ function pliktGrunner(r) {
 }
 
 // Lager varsel hvis selskapet har gått fra under til over grensen og ikke har revisor.
-function sjekkPliktOvergang(foer, naa = new Date().toISOString()) {
+async function sjekkPliktOvergang(foer) {
   if (!foer || !foer.regnskap_hentet) return;
-  const etter = pliktRad.get(foer.orgnr);
+  const etter = await pliktRad(foer.orgnr);
   if (!etter || !etter.aktiv || etter.revisor_orgnr) return;
   const grunner = pliktGrunner(etter);
   if (pliktGrunner(foer).length === 0 && grunner.length > 0) {
-    nyHendelse.run(foer.orgnr, 'revisjonsplikt', `Har passert grensen for revisjonsplikt (${grunner.join(', ')}) og har ingen revisor`, naa);
+    await db.kjor(...hendelseSql(foer.orgnr, 'revisjonsplikt', `Har passert grensen for revisjonsplikt (${grunner.join(', ')}) og har ingen revisor`));
   }
 }
 
@@ -253,19 +251,12 @@ function iUtvalg(e) {
     !e.konkurs && !e.underAvvikling && !e.underTvangsavviklingEllerTvangsopplosning && !e.slettedato);
 }
 
-// Lagrer et selskap fra Enhetsregisteret. Returnerer true hvis det er nytt i utvalget.
-function lagreEnhetMedVarsel(e, naa, { varsle }) {
-  const fantes = hentLagret.get(e.organisasjonsnummer);
-  lagreEnhet.run(enhetTilRad(e, naa));
-  if (fantes) return !fantes.aktiv;
-  if (varsle) {
-    const registrert = e.registreringsdatoEnhetsregisteret || e.stiftelsesdato;
-    const erNytt = registrert && Date.now() - new Date(registrert).getTime() < 180 * 24 * 60 * 60 * 1000;
-    nyHendelse.run(e.organisasjonsnummer, erNytt ? 'nytt_selskap' : 'flyttet_inn',
-      erNytt ? `Nytt selskap registrert ${registrert}${e.naeringskode1 ? ' – ' + e.naeringskode1.beskrivelse : ''}`
-        : 'Nytt i området (flyttet hit eller endret selskapsform)', naa);
-  }
-  return true;
+function nyttSelskapHendelse(e, naa) {
+  const registrert = e.registreringsdatoEnhetsregisteret || e.stiftelsesdato;
+  const erNytt = registrert && Date.now() - new Date(registrert).getTime() < 180 * 24 * 60 * 60 * 1000;
+  return hendelseSql(e.organisasjonsnummer, erNytt ? 'nytt_selskap' : 'flyttet_inn',
+    erNytt ? `Nytt selskap registrert ${registrert}${e.naeringskode1 ? ' – ' + e.naeringskode1.beskrivelse : ''}`
+      : 'Nytt i området (flyttet hit eller endret selskapsform)', naa);
 }
 
 // Henter roller (og eventuelt regnskap) for ett selskap og lager hendelser ved revisor-/regnskapsførerbytte.
@@ -274,98 +265,113 @@ async function oppdaterRollerOgRegnskap(orgnr, { regnskap = true, varsle = true 
     hentJson(`${ENHETER_URL}/${orgnr}/roller`),
     regnskap ? hentJson(`${REGNSKAP_URL}/${orgnr}`) : Promise.resolve(undefined),
   ]);
+  const setninger = [];
   if (roller) {
-    const gml = hentLagret.get(orgnr);
+    const gml = await hentLagret(orgnr);
     const ny = tolkRoller(roller);
-    const personer = tolkPersonroller(roller);
-    db.exec('BEGIN');
-    if (varsle && gml?.roller_hentet) sammenlignRoller(orgnr, gml, ny);
-    lagreRoller.run({ orgnr, ...ny });
-    slettPersonroller.run(orgnr);
-    for (const p of personer) lagrePersonrolle.run({ orgnr, ...p });
-    db.exec('COMMIT');
-  }
-  if (regnskap) {
-    const r = tolkRegnskap(regnskapData);
-    if (r) lagreRegnskap.run({ orgnr, ...r });
-  }
-}
-
-function startJobb(type, fase, totalt) {
-  if (status.kjorer) throw new Error('En oppdatering kjører allerede');
-  const naa = new Date().toISOString();
-  Object.assign(status, { kjorer: true, type, fase, ferdig: 0, totalt, startet: naa, feil: 0 });
-  const id = db.prepare('INSERT INTO synkroniseringer (startet, status, type) VALUES (?, ?, ?)').run(naa, 'kjorer', type).lastInsertRowid;
-  return { id, naa };
-}
-
-function avsluttJobb(id, { ok, melding = null, antall = null }) {
-  db.prepare('UPDATE synkroniseringer SET ferdig=?, status=?, melding=?, antall=? WHERE id=?')
-    .run(new Date().toISOString(), ok ? 'ok' : 'feil', melding, antall, id);
-  status.kjorer = false;
-  status.fase = null;
-}
-
-// --- Full oppdatering: alle selskaper, roller og regnskap ---------------------
-async function synkroniser({ logg = () => {} } = {}) {
-  const { id: synkId, naa } = startJobb('full', 'Henter selskaper', KOMMUNER.length);
-  // Ved aller første henting lages det ikke varsler for alle selskapene.
-  const varsle = db.prepare('SELECT COUNT(*) n FROM selskaper').get().n > 0;
-  // Øyeblikksbilde for å oppdage selskaper som passerer grensen for revisjonsplikt.
-  const foerPlikt = db.prepare(`SELECT orgnr, orgform, driftsinntekter, sum_eiendeler, ansatte, fravalg_revisjon,
-    revisor_orgnr, regnskap_hentet, aktiv FROM selskaper WHERE aktiv = 1`).all();
-  try {
-    // Feedposisjonene settes før hentingen, så ingen endringer underveis går tapt.
-    if (!lesInnstilling('enheter_fra_dato') && !lesInnstilling('enheter_oppdateringsid')) settInnstilling('enheter_fra_dato', naa);
-    if (!lesInnstilling('roller_fra_tid') && !lesInnstilling('roller_etter_id')) settInnstilling('roller_fra_tid', naa);
-
-    const sett = new Set();
-    for (const k of KOMMUNER) {
-      const enheter = await hentEnheterForKommune(k.nr);
-      db.exec('BEGIN');
-      for (const e of enheter) {
-        lagreEnhetMedVarsel(e, naa, { varsle });
-        sett.add(e.organisasjonsnummer);
-      }
-      db.exec('COMMIT');
-      status.ferdig++;
-      logg(`${k.navn}: ${enheter.length} selskaper`);
+    if (varsle && gml?.roller_hentet) setninger.push(...sammenlignRoller(orgnr, gml, ny));
+    setninger.push([SQL_ROLLER, { orgnr, ...ny }], ['DELETE FROM personroller WHERE orgnr = ?', [orgnr]]);
+    for (const p of tolkPersonroller(roller)) {
+      setninger.push(['INSERT INTO personroller (orgnr, rolle, navn, person_nokkel) VALUES (?, ?, ?, ?)', [orgnr, p.rolle, p.navn, p.person_nokkel]]);
     }
+  }
+  const r = regnskap ? tolkRegnskap(regnskapData) : null;
+  if (r) setninger.push([SQL_REGNSKAP, { orgnr, ...r }]);
+  await db.batch(setninger);
+}
 
-    // Selskaper som ikke lenger finnes i utvalget (slettet, konkurs, flyttet) skjules, men oppfølgingen beholdes.
-    const alle = db.prepare('SELECT orgnr FROM selskaper WHERE aktiv = 1').all();
-    const deaktiver = db.prepare('UPDATE selskaper SET aktiv = 0 WHERE orgnr = ?');
-    for (const { orgnr } of alle) if (!sett.has(orgnr)) deaktiver.run(orgnr);
+// --- Kø -----------------------------------------------------------------------
+// Typer: full / full_stille (roller + regnskap), enhet (sjekk selskapet, så roller), roller (bare roller).
+const RANG = { full: 3, full_stille: 3, enhet: 2, roller: 1 };
 
-    const orgnre = [...sett];
-    Object.assign(status, { fase: 'Henter roller og regnskap', ferdig: 0, totalt: orgnre.length });
-    await iParallell(orgnre, SAMTIDIGE_KALL, async (orgnr) => {
-      await oppdaterRollerOgRegnskap(orgnr, { varsle });
-      if (status.ferdig % 500 === 0) logg(`${status.ferdig}/${status.totalt}`);
-    });
-
-    if (varsle) for (const r of foerPlikt) sjekkPliktOvergang(r);
-
-    const melding = status.feil ? `${status.feil} selskaper kunne ikke hentes` : null;
-    avsluttJobb(synkId, { ok: true, melding, antall: orgnre.length });
-    logg(`Ferdig: ${orgnre.length} selskaper, ${status.feil} feil`);
-  } catch (e) {
-    avsluttJobb(synkId, { ok: false, melding: e.message });
-    throw e;
+async function leggIKo(orgnre, type) {
+  const naa = new Date().toISOString();
+  for (const del of deler(orgnre, 300)) {
+    await db.kjor(`INSERT INTO synk_ko (orgnr, type, lagt_til) VALUES ${del.map(() => '(?, ?, ?)').join(',')}
+      ON CONFLICT(orgnr) DO UPDATE SET type = CASE
+        WHEN (CASE synk_ko.type WHEN 'full' THEN 3 WHEN 'full_stille' THEN 3 WHEN 'enhet' THEN 2 ELSE 1 END) >= ${RANG[type]}
+        THEN synk_ko.type ELSE excluded.type END`, del.flatMap((o) => [o, type, naa]));
   }
 }
 
-// --- Hyppig oppdatering: bare selskaper som er endret i Brreg siden sist ------
+async function behandle({ orgnr, type }) {
+  if (type === 'full' || type === 'full_stille') {
+    const foer = await pliktRad(orgnr);
+    await oppdaterRollerOgRegnskap(orgnr, { varsle: type === 'full' });
+    if (type === 'full') await sjekkPliktOvergang(foer);
+  } else if (type === 'roller') {
+    await oppdaterRollerOgRegnskap(orgnr, { regnskap: false });
+  } else {
+    const e = await hentJson(`${ENHETER_URL}/${orgnr}`);
+    const lagret = await db.en('SELECT aktiv FROM selskaper WHERE orgnr = ?', [orgnr]);
+    if (!e || !iUtvalg(e)) {
+      if (lagret?.aktiv) await db.kjor('UPDATE selskaper SET aktiv = 0 WHERE orgnr = ?', [orgnr]);
+      return;
+    }
+    const foer = await pliktRad(orgnr);
+    const naa = new Date().toISOString();
+    const erNy = !lagret || !lagret.aktiv;
+    await db.batch([lagreEnheterSql([enhetTilRad(e, naa)]), ...(!lagret ? [nyttSelskapHendelse(e, naa)] : [])]);
+    await oppdaterRollerOgRegnskap(orgnr, { regnskap: erNy });
+    await sjekkPliktOvergang(foer);
+  }
+}
+
+// --- Lås -------------------------------------------------------------------------
+async function taLas(varighetMs) {
+  const naa = Date.now();
+  const r = await db.kjor(`INSERT INTO innstillinger (nokkel, verdi) VALUES ('synk_las', ?)
+    ON CONFLICT(nokkel) DO UPDATE SET verdi = excluded.verdi WHERE CAST(innstillinger.verdi AS INTEGER) < ?`,
+  [String(naa + varighetMs), naa]);
+  return r.endret > 0;
+}
+const slippLas = () => db.kjor("UPDATE innstillinger SET verdi = '0' WHERE nokkel = 'synk_las'");
+
+// --- Start av jobber ----------------------------------------------------------------
+async function nyJobb(type, antall) {
+  return db.kjor('INSERT INTO synkroniseringer (startet, status, type, antall) VALUES (?, ?, ?, ?)',
+    [new Date().toISOString(), 'kjorer', type, antall]);
+}
+
+// Full oppdatering: lagrer alle selskaper i kommunene og legger dem i køen for roller og regnskap.
+async function startFull(logg) {
+  const naa = new Date().toISOString();
+  const varsle = (await db.en('SELECT COUNT(*) n FROM selskaper')).n > 0;
+  // Feedposisjonene settes før hentingen, så ingen endringer underveis går tapt.
+  const posisjon = [];
+  if (!(await lesInnstilling('enheter_fra_dato')) && !(await lesInnstilling('enheter_oppdateringsid'))) posisjon.push(settInnstillingSql('enheter_fra_dato', naa));
+  if (!(await lesInnstilling('roller_fra_tid')) && !(await lesInnstilling('roller_etter_id'))) posisjon.push(settInnstillingSql('roller_fra_tid', naa));
+  if (posisjon.length) await db.batch(posisjon);
+
+  const fantes = new Map((await db.alle('SELECT orgnr, aktiv FROM selskaper')).map((r) => [r.orgnr, r.aktiv]));
+  const sett = new Set();
+  for (const k of KOMMUNER) {
+    const enheter = await hentEnheterForKommune(k.nr);
+    for (const del of deler(enheter, 100)) {
+      const setninger = [lagreEnheterSql(del.map((e) => enhetTilRad(e, naa)))];
+      if (varsle) for (const e of del) if (!fantes.has(e.organisasjonsnummer)) setninger.push(nyttSelskapHendelse(e, naa));
+      await db.batch(setninger);
+    }
+    enheter.forEach((e) => sett.add(e.organisasjonsnummer));
+    logg(`${k.navn}: ${enheter.length} selskaper`);
+  }
+  // Selskaper som ikke lenger finnes i utvalget (slettet, konkurs, flyttet) skjules, men oppfølgingen beholdes.
+  const borte = [...fantes].filter(([orgnr, aktiv]) => aktiv && !sett.has(orgnr)).map(([o]) => o);
+  for (const del of deler(borte, 300)) await db.kjor(`UPDATE selskaper SET aktiv = 0 WHERE orgnr IN (${del.map(() => '?').join(',')})`, del);
+
+  await leggIKo([...sett], varsle ? 'full' : 'full_stille');
+  await nyJobb('full', sett.size);
+  logg(`Full oppdatering: ${sett.size} selskaper lagt i kø`);
+}
+
 async function hentEndredeEnheter() {
   const endret = new Map();
-  let id = lesInnstilling('enheter_oppdateringsid');
-  const fraDato = lesInnstilling('enheter_fra_dato');
+  let id = await lesInnstilling('enheter_oppdateringsid');
+  const fraDato = await lesInnstilling('enheter_fra_dato');
+  const base = ENHETER_URL.replace('/enheter', '/oppdateringer/enheter');
   for (let runde = 0; runde < 200; runde++) {
-    const url = id
-      ? `${ENHETER_URL.replace('/enheter', '/oppdateringer/enheter')}?oppdateringsid=${id}&size=1000`
-      : `${ENHETER_URL.replace('/enheter', '/oppdateringer/enheter')}?dato=${encodeURIComponent(fraDato)}&size=1000`;
-    const data = await hentJson(url);
-    const liste = data?._embedded?.oppdaterteEnheter || [];
+    const url = id ? `${base}?oppdateringsid=${id}&size=1000` : `${base}?dato=${encodeURIComponent(fraDato)}&size=1000`;
+    const liste = (await hentJson(url))?._embedded?.oppdaterteEnheter || [];
     for (const o of liste) endret.set(o.organisasjonsnummer, o.endringstype);
     if (liste.length) id = String(liste.at(-1).oppdateringsid + 1);
     if (liste.length < 1000) break;
@@ -375,8 +381,8 @@ async function hentEndredeEnheter() {
 
 async function hentEndredeRoller() {
   const endret = new Set();
-  let etterId = lesInnstilling('roller_etter_id');
-  const fraTid = lesInnstilling('roller_fra_tid');
+  let etterId = await lesInnstilling('roller_etter_id');
+  const fraTid = await lesInnstilling('roller_fra_tid');
   const base = ENHETER_URL.replace('/enheter', '/oppdateringer/roller');
   for (let runde = 0; runde < 50; runde++) {
     const url = etterId ? `${base}?afterId=${etterId}&size=10000` : `${base}?afterTime=${encodeURIComponent(fraTid)}&size=10000`;
@@ -388,52 +394,83 @@ async function hentEndredeRoller() {
   return { endret, etterId };
 }
 
-async function synkEndringer({ logg = () => {} } = {}) {
-  if (!lesInnstilling('enheter_fra_dato') && !lesInnstilling('enheter_oppdateringsid')) {
-    // Ingen feedposisjon ennå: start fra siste fullstendige henting, eller gjør en full henting.
-    const siste = db.prepare("SELECT startet FROM synkroniseringer WHERE status = 'ok' AND COALESCE(type, 'full') = 'full' ORDER BY id DESC LIMIT 1").get();
-    if (!siste) return synkroniser({ logg });
-    settInnstilling('enheter_fra_dato', siste.startet);
-    settInnstilling('roller_fra_tid', siste.startet);
+// Endringer: leser Brregs endringsfeeder og legger endrede selskaper i køen.
+async function startEndringer(logg) {
+  if (!(await lesInnstilling('enheter_fra_dato')) && !(await lesInnstilling('enheter_oppdateringsid'))) {
+    const siste = await db.en("SELECT startet FROM synkroniseringer WHERE status = 'ok' AND COALESCE(type, 'full') = 'full' ORDER BY id DESC LIMIT 1");
+    if (!siste) return startFull(logg);
+    await db.batch([settInnstillingSql('enheter_fra_dato', siste.startet), settInnstillingSql('roller_fra_tid', siste.startet)]);
   }
-  const { id: synkId, naa } = startJobb('endringer', 'Sjekker endringer i Brreg', 0);
-  try {
-    const [enheter, roller] = await Promise.all([hentEndredeEnheter(), hentEndredeRoller()]);
-    const lagret = new Set(db.prepare('SELECT orgnr FROM selskaper').all().map((r) => r.orgnr));
-    const aktive = new Set(db.prepare('SELECT orgnr FROM selskaper WHERE aktiv = 1').all().map((r) => r.orgnr));
+  const [enheter, roller] = await Promise.all([hentEndredeEnheter(), hentEndredeRoller()]);
+  const lagret = new Set((await db.alle('SELECT orgnr FROM selskaper')).map((r) => r.orgnr));
+  const aktive = new Set((await db.alle('SELECT orgnr FROM selskaper WHERE aktiv = 1')).map((r) => r.orgnr));
+  // Endrede selskaper: de vi har, og alle nye/endrede som kan ha flyttet inn i området.
+  const sjekk = [...enheter.endret].filter(([orgnr, type]) => lagret.has(orgnr) || type !== 'Sletting').map(([o]) => o);
+  const rollerEndret = [...roller.endret].filter((o) => aktive.has(o) && !enheter.endret.has(o));
+  await leggIKo(sjekk, 'enhet');
+  await leggIKo(rollerEndret, 'roller');
+  const posisjon = [];
+  if (enheter.nesteId) posisjon.push(settInnstillingSql('enheter_oppdateringsid', enheter.nesteId));
+  if (roller.etterId) posisjon.push(settInnstillingSql('roller_etter_id', roller.etterId));
+  if (posisjon.length) await db.batch(posisjon);
+  await nyJobb('endringer', sjekk.length + rollerEndret.length);
+  logg(`Endringer: ${enheter.endret.size} i hele landet, ${sjekk.length + rollerEndret.length} lagt i kø`);
+}
 
-    // Endrede selskaper: de vi har, og alle nye/endrede som kan ha flyttet inn i området.
-    const sjekkEnheter = [...enheter.endret].filter(([orgnr, type]) => lagret.has(orgnr) || type !== 'Sletting').map(([o]) => o);
-    const rollerIgjen = new Set([...roller.endret].filter((o) => aktive.has(o)));
-    Object.assign(status, { fase: 'Oppdaterer endrede selskaper', totalt: sjekkEnheter.length + rollerIgjen.size });
-    let nye = 0;
-
-    await iParallell(sjekkEnheter, SAMTIDIGE_KALL, async (orgnr) => {
-      const e = await hentJson(`${ENHETER_URL}/${orgnr}`);
-      if (!e || !iUtvalg(e)) {
-        if (aktive.has(orgnr)) db.prepare('UPDATE selskaper SET aktiv = 0 WHERE orgnr = ?').run(orgnr);
-        return;
+// Behandler køen til den er tom eller fristen er nådd.
+async function arbeid(frist, logg) {
+  for (;;) {
+    const rader = await db.alle('SELECT orgnr, type FROM synk_ko ORDER BY lagt_til, orgnr LIMIT 60');
+    if (!rader.length) {
+      await db.kjor("UPDATE synkroniseringer SET status = 'ok', ferdig = ? WHERE status = 'kjorer'", [new Date().toISOString()]);
+      return true;
+    }
+    await iParallell(rader, SAMTIDIGE_KALL, async (r) => {
+      try { await behandle(r); } finally {
+        await db.kjor('DELETE FROM synk_ko WHERE orgnr = ? AND type = ?', [r.orgnr, r.type]);
       }
-      const foer = pliktRad.get(orgnr);
-      const erNy = lagreEnhetMedVarsel(e, naa, { varsle: true });
-      if (erNy) nye++;
-      if (erNy || rollerIgjen.has(orgnr)) {
-        rollerIgjen.delete(orgnr);
-        await oppdaterRollerOgRegnskap(orgnr, { regnskap: erNy });
-      }
-      sjekkPliktOvergang(foer);
     });
-    await iParallell([...rollerIgjen], SAMTIDIGE_KALL, (orgnr) => oppdaterRollerOgRegnskap(orgnr, { regnskap: false }));
-
-    if (enheter.nesteId) settInnstilling('enheter_oppdateringsid', enheter.nesteId);
-    if (roller.etterId) settInnstilling('roller_etter_id', roller.etterId);
-    const antall = sjekkEnheter.length + rollerIgjen.size;
-    avsluttJobb(synkId, { ok: true, antall, melding: status.feil ? `${status.feil} feil` : null });
-    logg(`Endringer: ${enheter.endret.size} i hele landet, ${antall} sjekket, ${nye} nye i området`);
-  } catch (e) {
-    avsluttJobb(synkId, { ok: false, melding: e.message });
-    throw e;
+    const igjen = (await db.en('SELECT COUNT(*) n FROM synk_ko')).n;
+    if (igjen % 1000 < 60) logg(`${igjen} igjen i køen`);
+    if (Date.now() > frist) return false;
   }
+}
+
+/**
+ * Kjører oppdatering mot Brreg til køen er tom eller fristen nås.
+ * type: 'auto' (full hvis forrige fulle er over en uke gammel, ellers endringer), 'full' eller 'endringer'.
+ * Returnerer { ferdig, startet } – ferdig=false betyr at mer gjenstår i køen.
+ */
+async function kjorSynk({ type = 'auto', frist = Date.now() + 240_000, logg = () => {} } = {}) {
+  if (!(await taLas(frist - Date.now() + 60_000))) return { ferdig: false, startet: false, opptatt: true };
+  try {
+    const iKo = (await db.en('SELECT COUNT(*) n FROM synk_ko')).n;
+    if (!iKo) {
+      let vilFull = type === 'full';
+      if (type === 'auto') {
+        const sisteFull = await db.en("SELECT ferdig FROM synkroniseringer WHERE status = 'ok' AND COALESCE(type, 'full') = 'full' ORDER BY id DESC LIMIT 1");
+        vilFull = !sisteFull || Date.now() - new Date(sisteFull.ferdig).getTime() > 7 * 24 * 60 * 60 * 1000;
+      }
+      if (vilFull) await startFull(logg); else await startEndringer(logg);
+    }
+    const ferdig = await arbeid(frist, logg);
+    if (ferdig) logg('Oppdatering ferdig');
+    return { ferdig, startet: true };
+  } catch (e) {
+    await db.kjor("UPDATE synkroniseringer SET status = 'feil', ferdig = ?, melding = ? WHERE status = 'kjorer'",
+      [new Date().toISOString(), e.message]).catch(() => {});
+    throw e;
+  } finally {
+    await slippLas().catch(() => {});
+  }
+}
+
+// Status for visning i portalen (fra databasen, så den er lik for alle kopier av appen).
+async function synkStatus() {
+  const ko = (await db.en('SELECT COUNT(*) n FROM synk_ko')).n;
+  const las = Number(await lesInnstilling('synk_las')) || 0;
+  const jobb = await db.en("SELECT * FROM synkroniseringer WHERE status = 'kjorer' ORDER BY id DESC LIMIT 1");
+  return { kjorer: ko > 0 || las > Date.now(), ko, jobb, aktivNa: las > Date.now() };
 }
 
 // --- Detaljer hentet direkte fra Brreg når et selskap åpnes -------------------
@@ -528,4 +565,4 @@ async function hentDetaljer(orgnr) {
   return data;
 }
 
-module.exports = { synkroniser, synkEndringer, hentDetaljer, status };
+module.exports = { kjorSynk, synkStatus, hentDetaljer };

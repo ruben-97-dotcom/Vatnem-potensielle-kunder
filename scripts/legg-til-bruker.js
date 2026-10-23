@@ -8,11 +8,12 @@ if (!navn) {
   console.error('Bruk: npm run legg-til-bruker -- "Navn" [6-sifret kode]');
   process.exit(1);
 }
-const kode = valgtKode || nyKode();
-try {
-  lagreBruker(navn, kode);
+(async () => {
+  const kode = valgtKode || await nyKode();
+  await lagreBruker(navn, kode);
   console.log(`Bruker "${navn}" kan logge inn med kode: ${kode}`);
-} catch (e) {
+  process.exit(0);
+})().catch((e) => {
   console.error(e.message);
   process.exit(1);
-}
+});

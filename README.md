@@ -29,12 +29,14 @@ Selskaper som allerede har Vatnem Revisjon som revisor er merket som eksisterend
 
 ### Oppdatering mot Brreg
 
-- **Hvert 30. minutt** leser portalen Brregs endringsfeeder for selskaper og roller, og henter bare selskapene som
-  er endret. Nye selskaper i området kommer dermed inn innen en halvtime. Intervallet kan endres med
-  `ENDRINGER_INTERVALL_MIN`.
-- **Hver uke** gjøres en full oppdatering av alle selskaper, roller og regnskap (rundt 2 minutter).
-- Begge kan også startes manuelt fra oversiktssiden. Oppdateringene rører aldri statuser, notater eller annen
-  oppfølging.
+Arbeidet legges i en kø i databasen og gjøres i biter, slik at det tåler begrenset kjøretid på Vercel. En kjøring
+som ikke blir ferdig, fortsetter der den slapp.
+
+- **Endringer** (nye selskaper, revisorbytte osv.): leser Brregs endringsfeeder og oppdaterer bare selskapene som
+  er endret. Kjøres når portalen er i bruk og forrige sjekk er eldre enn 30 minutter (`ENDRINGER_INTERVALL_MIN`),
+  og av Vercel Cron hver natt. Lokalt kjøres den hvert 30. minutt.
+- **Full oppdatering** av alle selskaper, roller og regnskap: automatisk hvis den forrige er over en uke gammel.
+- Begge kan startes manuelt fra oversiktssiden. Oppdateringene rører aldri statuser, notater eller annen oppfølging.
 
 ### Felles mål
 
@@ -96,7 +98,7 @@ har oppgitt at revisjon er valgt bort, regnes bare inntekt og balanse.
 
 ## Kjøre lokalt
 
-Krever Node.js 22.13 eller nyere.
+Krever Node.js 22 eller nyere.
 
 ```bash
 npm install
@@ -125,23 +127,32 @@ Brukere kan settes opp på to måter:
 2. **Kommando**: `npm run legg-til-bruker -- "Navn"` lager en tilfeldig kode og skriver den ut. Legg til en kode
    etter navnet for å velge den selv.
 
-## Publisere på nett (Render)
+## Publisere på Vercel
 
-Repoet inneholder `render.yaml` for [Render](https://render.com):
+Appen kjører på Vercel som én funksjon (Express), med databasen i [Turso](https://turso.tech) (SQLite i skyen).
 
-1. Opprett en konto på Render og koble til GitHub-repoet.
-2. Velg **New → Blueprint** og pek på dette repoet. Render leser `render.yaml`.
-3. Fyll inn `BRUKERE` med navn og koder når Render ber om det.
-4. Ved første oppstart henter portalen dataene selv. Det tar et par minutter.
+1. **Database:** I Vercel-prosjektet, gå til **Storage** (eller **Marketplace**) og legg til **Turso**. Opprett en
+   database og koble den til prosjektet. Da legges `TURSO_DATABASE_URL` og `TURSO_AUTH_TOKEN` inn automatisk.
+   Alternativt kan du opprette databasen på turso.tech og legge inn de to verdiene selv.
+2. **Miljøvariabler** under **Settings → Environment Variables**:
+   - `BRUKERE`: navn og koder, samme format som i `.env` (f.eks. `Ruben:123456;Judith:654321`)
+   - `CRON_SECRET`: verdien fra `.env` (brukes av Vercel Cron og når en oppdatering fortsetter seg selv)
+3. **Flytt dataene:** legg `TURSO_DATABASE_URL` og `TURSO_AUTH_TOKEN` inn i `.env` lokalt og kjør
+   `npm run migrer`. Det kopierer selskaper, statuser, notater, mål og brukere fra den lokale fila til Turso.
+   Hopper du over dette, henter portalen alt fra Brreg selv i biter, og det tar en stund.
+4. **Send ut på nytt:** **Deployments → Redeploy**, slik at miljøvariablene blir med.
 
-Oppsettet bruker Starter-planen med en fast disk på 1 GB, slik at databasen overlever omstart. Gratisplanen har
-ikke fast disk, og der ville statuser og notater blitt slettet ved hver omstart. Andre tjenester med fast disk,
-for eksempel Railway eller Fly.io, fungerer også. Sett `DATA_DIR` til mappen der disken er montert.
+`vercel.json` setter opp en cron-jobb hver natt. På gratisplanen (Hobby) kan cron bare kjøre én gang i døgnet;
+den halvtimelige sjekken skjer derfor når portalen brukes. På Pro kan cron settes til f.eks. `*/30 * * * *`.
+
+Lokalt bruker appen fortsatt fila `data/portal.db`, med mindre `TURSO_DATABASE_URL` er satt i `.env`.
+`render.yaml` er beholdt: appen kan fortsatt kjøres på Render med fast disk i stedet for Vercel.
 
 ## Teknisk
 
-- `src/server.js`: Express-server og API
-- `src/brreg.js`: henter data fra Enhetsregisteret og Regnskapsregisteret
-- `src/auth.js`: innlogging, økter og sperre mot gjetting
-- `src/db.js`: SQLite-database (innebygd i Node, `node:sqlite`)
+- `src/server.js`: Express-app og API (eksporteres for Vercel, starter egen server lokalt)
+- `src/brreg.js`: henter data fra Enhetsregisteret og Regnskapsregisteret, med kø og tidsbudsjett
+- `src/auth.js`: innlogging, økter og sperre mot gjetting (alt i databasen)
+- `src/db.js`: database via libSQL – Turso i skyen eller lokal SQLite-fil
+- `scripts/migrer-til-turso.js`: kopierer lokale data til Turso
 - `public/`: grensesnittet (HTML, CSS og JavaScript uten rammeverk)
