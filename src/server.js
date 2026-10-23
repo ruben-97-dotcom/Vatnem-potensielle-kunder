@@ -197,8 +197,9 @@ function byggFilter(q, bruker) {
   if (q.plikt === 'alle') where.push("(revisor_orgnr IS NULL AND roller_hentet = 1) AND orgform IN ('AS', 'SA') AND (revisjonspliktig = 1 OR plikt_andel >= 0.7)");
   if (/^\d+$/.test(q.nye || '')) { where.push("stiftet >= date('now', :nye_dager)"); p.nye_dager = `-${Number(q.nye)} days`; }
   if (q.tilknyttet === 'ukontaktet') where.push(`NOT EXISTS (${TILKNYTTET_KONTAKTET} WHERE p1.orgnr = v_selskaper.orgnr AND ${ER_KONTAKTET})`);
-  if (q.kunder !== 'vis') where.push('er_kunde = 0');
+  // Vatnem-kunder: skjult som standard, «vis» tar dem med, «kun» viser bare dem.
   if (q.kunder === 'kun') where.push('er_kunde = 1');
+  else if (q.kunder !== 'vis') where.push('er_kunde = 0');
   return { sql: where.join(' AND '), p };
 }
 
