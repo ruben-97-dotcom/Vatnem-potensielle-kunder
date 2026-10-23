@@ -103,6 +103,11 @@ const TILKNYTTET_KONTAKTET = `SELECT 1 FROM personroller p1
   JOIN selskaper s2 ON s2.orgnr = p2.orgnr AND s2.aktiv = 1
   LEFT JOIN oppfolging o2 ON o2.orgnr = p2.orgnr`;
 const ER_KONTAKTET = `(o2.ringt = 1 OR o2.status != 'ny' OR s2.revisor_orgnr = '${VATNEM_ORGNR}')`;
+// Selskapet har en person (daglig leder, styreleder, styremedlem o.l.) som også har rolle i et selskap Vatnem reviderer.
+const FELLES_MED_VATNEM = `EXISTS (SELECT 1 FROM personroller p1
+  JOIN personroller p2 ON p2.person_nokkel = p1.person_nokkel AND p2.orgnr != p1.orgnr
+  JOIN selskaper s2 ON s2.orgnr = p2.orgnr AND s2.aktiv = 1 AND s2.revisor_orgnr = '${VATNEM_ORGNR}'
+  WHERE p1.orgnr = v_selskaper.orgnr)`;
 
 const ROLLENAVN = {
   DAGL: 'daglig leder', LEDE: 'styreleder', NEST: 'nestleder', MEDL: 'styremedlem', KONT: 'kontaktperson',
@@ -114,7 +119,8 @@ async function tilknytningForListe(orgnre) {
   if (!orgnre.length) return {};
   const rader = await db.alle(`SELECT p1.orgnr,
       COUNT(DISTINCT p2.orgnr) AS antall,
-      COUNT(DISTINCT CASE WHEN ${ER_KONTAKTET} THEN p2.orgnr END) AS kontaktet
+      COUNT(DISTINCT CASE WHEN ${ER_KONTAKTET} THEN p2.orgnr END) AS kontaktet,
+      COUNT(DISTINCT CASE WHEN s2.revisor_orgnr = '${VATNEM_ORGNR}' THEN p2.orgnr END) AS vatnem
     FROM personroller p1
     JOIN personroller p2 ON p2.person_nokkel = p1.person_nokkel AND p2.orgnr != p1.orgnr
     JOIN selskaper s2 ON s2.orgnr = p2.orgnr AND s2.aktiv = 1
@@ -200,6 +206,7 @@ function byggFilter(q, bruker) {
   if (q.plikt === 'naer') where.push("revisjonspliktig = 0 AND (revisor_orgnr IS NULL AND roller_hentet = 1) AND plikt_andel >= 0.7 AND orgform IN ('AS', 'SA')");
   if (q.plikt === 'alle') where.push("(revisor_orgnr IS NULL AND roller_hentet = 1) AND orgform IN ('AS', 'SA') AND (revisjonspliktig = 1 OR plikt_andel >= 0.7)");
   if (/^\d+$/.test(q.nye || '')) { where.push("stiftet >= date('now', :nye_dager)"); p.nye_dager = `-${Number(q.nye)} days`; }
+  if (q.tilknyttet === 'vatnem') where.push(FELLES_MED_VATNEM);
   if (q.tilknyttet === 'ukontaktet') where.push(`NOT EXISTS (${TILKNYTTET_KONTAKTET} WHERE p1.orgnr = v_selskaper.orgnr AND ${ER_KONTAKTET})`);
   // Vatnem-kunder: skjult som standard, «vis» tar dem med, «kun» viser bare dem.
   if (q.kunder === 'kun') where.push('er_kunde = 1');
@@ -234,6 +241,7 @@ app.get('/api/selskaper', a(async (req, res) => {
   for (const r of rader) {
     r.tilknyttede = tilknytning[r.orgnr]?.antall || 0;
     r.tilknyttede_kontaktet = tilknytning[r.orgnr]?.kontaktet || 0;
+    r.tilknyttede_vatnem = tilknytning[r.orgnr]?.vatnem || 0;
   }
   res.json({ totalt: antall.n, side, perSide, rader });
 }));
@@ -246,8 +254,8 @@ function csvCelle(v) {
 
 app.get('/api/eksport.csv', a(async (req, res) => {
   const { sql, p } = byggFilter(req.query, req.bruker);
-  const rader = await db.alle(`SELECT v.*, b.navn AS ansvarlig FROM v_selskaper v LEFT JOIN brukere b ON b.id = v.ansvarlig_id
-    WHERE ${sql} ORDER BY poeng DESC, navn`, p);
+  const rader = await db.alle(`SELECT v.*, (SELECT navn FROM brukere WHERE id = v.ansvarlig_id) AS ansvarlig
+    FROM (SELECT * FROM v_selskaper WHERE ${sql}) v ORDER BY poeng DESC, navn`, p);
   const statusNavn = Object.fromEntries(STATUSER.map((s) => [s.kode, s.navn]));
   const kolonner = [
     ['Orgnr', 'orgnr'], ['Selskap', 'navn'], ['Form', 'orgform'], ['Kommune', 'kommune'], ['Bransje', 'nace_tekst'],
@@ -469,7 +477,7 @@ app.get('/api/meg', (req, res) => res.json(req.bruker));
 
 app.get('/api/oversikt', a(async (req, res) => {
   const base = 'FROM v_selskaper WHERE aktiv = 1 AND er_kunde = 0';
-  const [statusRader, tall, forfalt, forfaltAlle, kunder, sisteAktivitet, sisteVarsler, nye, naerPlikt, uleste, maal] = await Promise.all([
+  const [statusRader, tall, forfalt, forfaltAlle, kunder, sisteAktivitet, sisteVarsler, nye, naerPlikt, uleste, maal, nettverk] = await Promise.all([
     db.alle(`SELECT status, COUNT(*) n ${base} GROUP BY status`),
     db.en(`SELECT COUNT(*) totalt, SUM(ringt) ringt, SUM(egenkapital > 0) ek_positiv,
       SUM((revisor_orgnr IS NULL AND roller_hentet = 1) AND revisjonspliktig = 1) plikt_uten_revisor ${base}`),
@@ -486,10 +494,11 @@ app.get('/api/oversikt', a(async (req, res) => {
       SUM(revisjonspliktig = 0 AND (revisor_orgnr IS NULL AND roller_hentet = 1) AND plikt_andel >= 0.7) naer ${base}`),
     ulesteVarsler(req.bruker.id),
     maalMedFremdrift(),
+    db.en(`SELECT COUNT(*) n FROM v_selskaper WHERE aktiv = 1 AND er_kunde = 0 AND ${FELLES_MED_VATNEM}`),
   ]);
   const perStatus = Object.fromEntries(statusRader.map((r) => [r.status, r.n]));
   res.json({ ...tall, perStatus, forfalt: forfalt.n, forfaltAlle: forfaltAlle.n, kunder: kunder.n, sisteAktivitet,
-    sisteVarsler, nyeSiste30: nye.n, ulesteVarsler: uleste, naerPlikt, maal });
+    sisteVarsler, nyeSiste30: nye.n, ulesteVarsler: uleste, naerPlikt, maal, fellesMedVatnem: nettverk.n });
 }));
 
 app.get('/api/revisorer', a(async (req, res) => {

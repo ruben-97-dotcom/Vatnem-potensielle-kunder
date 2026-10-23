@@ -400,6 +400,7 @@ async function lastOversikt() {
   tegnDagensRute(mineRute.rader);
   tegnForemelding(revisorer);
   $('#antall-nye').textContent = nf.format(o.nyeSiste30 || 0);
+  $('#antall-nettverk').textContent = nf.format(o.fellesMedVatnem || 0);
   $('#antall-plikt').textContent = nf.format((o.naerPlikt?.over_uten || 0) + (o.naerPlikt?.naer || 0));
 
   $('#siste-varsler').innerHTML = o.sisteVarsler.length
@@ -631,6 +632,7 @@ const SNARVEIER = {
   'kunder': { kunder: 'kun', sorter: 'driftsinntekter' },
   'nye': { nye: '90', sorter: 'stiftet' },
   'nye30': { nye: '30', sorter: 'stiftet' },
+  'vatnem-nettverk': { tilknyttet: 'vatnem', sorter: 'poeng' },
 };
 $$('[data-snarvei]').forEach((b) => b.addEventListener('click', () => visListeMed(SNARVEIER[b.dataset.snarvei])));
 
@@ -751,6 +753,9 @@ $$('th[data-sorter]').forEach((th) => th.addEventListener('click', () => {
 
 function tilknytningMerke(r) {
   if (!r.tilknyttede) return '';
+  if (r.tilknyttede_vatnem) {
+    return `<span class="merkelapp m-green liten-merke" title="En person i ledelsen eller styret har også rolle i et selskap Vatnem reviderer">${ikon('lenke')} Felles person med ${r.tilknyttede_vatnem === 1 ? 'en Vatnem-kunde' : r.tilknyttede_vatnem + ' Vatnem-kunder'}</span>`;
+  }
   if (r.tilknyttede_kontaktet) {
     return `<span class="merkelapp m-amber liten-merke" title="Et selskap med samme person i ledelsen/styret er allerede kontaktet eller er kunde">${ikon('varsel')} ${r.tilknyttede_kontaktet} tilknyttet kontaktet</span>`;
   }
