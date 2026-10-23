@@ -217,7 +217,13 @@
         <div class="kart-oppsett">
           <div class="kart-ramme">
             <div id="kart" class="kart" role="region" aria-label="Kart over selskapene i regionen"></div>
-            <div class="kart-overlegg kart-overlegg-topp" id="kart-tall" aria-live="polite"></div>
+            <div class="kart-overlegg kart-overlegg-topp">
+              <div class="kart-tittelkort">
+                <h1>Kart</h1>
+                <span>Hver prikk er et selskap, farget etter revisor.</span>
+              </div>
+              <div class="kart-tall-rad" id="kart-tall" aria-live="polite"></div>
+            </div>
           </div>
           <aside class="kart-panel" id="kart-panel" aria-label="I dette området">
             <div class="kart-panel-topp">
@@ -233,8 +239,8 @@
               <label class="filter-felt"><span>Gå til kommune</span>
                 <select id="kart-kommune"><option value="">Hele regionen</option></select>
               </label>
-              <label class="bryter bryter-switch"><input type="checkbox" id="kart-passer"><span>Bare selskaper som passer for Vatnem</span></label>
-              <label class="bryter bryter-switch"><input type="checkbox" id="kart-ukontaktet"><span>Skjul selskaper som er kontaktet</span></label>
+              <label class="kart-valg"><span>Bare selskaper som passer for Vatnem</span><input type="checkbox" id="kart-passer"></label>
+              <label class="kart-valg"><span>Skjul selskaper som er kontaktet</span><input type="checkbox" id="kart-ukontaktet"></label>
 
               <div class="kart-seksjon">
                 <h3>Revisorer <span class="dempet kart-hint">klikk for å skjule</span></h3>

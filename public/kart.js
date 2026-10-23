@@ -29,14 +29,29 @@ function kartGruppe(rad) {
 
 // Prikkene vokser når man zoomer inn, så oversikten ikke blir et fargehav.
 function radiusFor(gruppe, zoom) {
-  const base = zoom <= 9 ? 2.5 : zoom <= 10 ? 3.5 : zoom <= 12 ? 5 : zoom <= 14 ? 6.5 : 8;
-  return gruppe === 'vatnem' ? base + 2.5 : gruppe === 'ingen' ? base + 0.5 : base;
+  const base = zoom <= 9 ? 3.5 : zoom <= 10 ? 4.5 : zoom <= 12 ? 5.5 : zoom <= 14 ? 7 : 8.5;
+  return gruppe === 'vatnem' ? base + 4 : base;
 }
 
 function initKart() {
-  const k = L.map('kart', { preferCanvas: true, zoomControl: false, attributionControl: true }).setView([59.55, 5.6], 9);
-  L.control.zoom({ position: 'bottomleft', zoomInTitle: 'Zoom inn', zoomOutTitle: 'Zoom ut' }).addTo(k);
-  L.tileLayer('https://cache.kartverket.no/v1/wmts/1.0.0/topograatone/default/webmercator/{z}/{y}/{x}.png', {
+  const k = L.map('kart', { preferCanvas: true, zoomControl: false, zoomSnap: 0.25, zoomDelta: 0.5, attributionControl: true }).setView([59.55, 5.6], 9);
+  L.control.zoom({ position: 'topright', zoomInTitle: 'Zoom inn', zoomOutTitle: 'Zoom ut' }).addTo(k);
+  // «Min posisjon»: flytter kartet dit du er (nyttig når dere er ute i området).
+  const Posisjon = L.Control.extend({
+    options: { position: 'topright' },
+    onAdd() {
+      const knapp = L.DomUtil.create('button', 'kart-posisjon');
+      knapp.type = 'button';
+      knapp.title = 'Vis hvor jeg er';
+      knapp.setAttribute('aria-label', 'Vis hvor jeg er');
+      knapp.innerHTML = '<svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="3.2"/><path d="M12 2v3M12 19v3M2 12h3M19 12h3"/><circle cx="12" cy="12" r="7"/></svg>';
+      L.DomEvent.disableClickPropagation(knapp);
+      L.DomEvent.on(knapp, 'click', visMinPosisjon);
+      return knapp;
+    },
+  });
+  new Posisjon().addTo(k);
+  L.tileLayer('https://cache.kartverket.no/v1/wmts/1.0.0/topo/default/webmercator/{z}/{y}/{x}.png', {
     maxZoom: 18,
     className: 'kart-fliser',
     attribution: '© <a href="https://www.kartverket.no/" target="_blank" rel="noopener noreferrer">Kartverket</a>',
@@ -44,6 +59,7 @@ function initKart() {
   k.attributionControl.setPrefix(false);
   k.attributionControl.setPosition('bottomleft');
   kartTilstand.kart = k;
+  tegnKommuner(k);
   kartTilstand.lag = L.layerGroup().addTo(k);
 
   const valg = $('#kart-kommune');
@@ -104,14 +120,11 @@ function zoomTilKommune() {
   const nr = $('#kart-kommune').value;
   const punkter = kartTilstand.data.rader.filter((r) => !nr || r[K.kommunenr] === nr).map((r) => [r[K.lat], r[K.lon]]);
   if (!punkter.length) return;
-  // Ta hensyn til panelet, så prikkene havner i den synlige delen av kartet.
-  const panel = $('#kart-panel');
-  const apen = !panel.classList.contains('lukket');
+  // På mobil ligger panelet som et ark nederst på kartet; hold prikkene over det.
   const mobil = window.innerWidth <= 700;
-  const hoyre = !mobil && apen ? panel.offsetWidth + 40 : 40;
-  const bunn = mobil ? panel.offsetHeight + 30 : 40;
+  const bunn = mobil ? $('#kart-panel').offsetHeight + 30 : 30;
   kartTilstand.kart.flyToBounds(L.latLngBounds(punkter), {
-    paddingTopLeft: [40, 80], paddingBottomRight: [hoyre, bunn], maxZoom: 13, duration: 0.8,
+    paddingTopLeft: [30, mobil ? 60 : 90], paddingBottomRight: [mobil ? 30 : 70, bunn], maxZoom: 13, duration: 0.8,
   });
 }
 
@@ -242,10 +255,10 @@ function oppdaterOmrade() {
   const passer = iUtsnitt.filter((r) => !r[K.kunde] && r[K.passer]).length;
   const kunder = iUtsnitt.filter((r) => r[K.kunde]);
   $('#kart-tall').innerHTML =
-    '<div class="kart-tall-brikke"><b>' + nf.format(iUtsnitt.length) + '</b><span>selskaper i utsnittet</span></div>' +
+    '<div class="kart-tall-brikke"><b>' + nf.format(iUtsnitt.length) + '</b><span>i utsnittet</span></div>' +
     '<div class="kart-tall-brikke gronn"><b>' + nf.format(uten) + '</b><span>uten revisor</span></div>' +
     '<div class="kart-tall-brikke"><b>' + nf.format(passer) + '</b><span>passer for Vatnem</span></div>' +
-    '<div class="kart-tall-brikke oransje"><b>' + nf.format(kunder.length) + '</b><span>Vatnem-kunder</span></div>';
+    '<div class="kart-tall-brikke mork"><b>' + nf.format(kunder.length) + '</b><span>Vatnem-kunder</span></div>';
 
   const valgt = $('#kart-kommune');
   $('#kart-omrade-tittel').textContent = valgt.value ? valgt.selectedOptions[0].text : 'Kartutsnittet';
@@ -272,4 +285,34 @@ function oppdaterOmrade() {
     (kunder.length > 5 ? '<li class="dempet kart-tom">og ' + (kunder.length - 5) + ' til i utsnittet</li>' : '')
     : '<li class="dempet kart-tom">Ingen Vatnem-kunder i utsnittet.</li>';
   $$('.kart-panel [data-farge]').forEach((x) => { x.style.setProperty('--prikk', x.dataset.farge); });
+}
+
+// Kommunegrenser (stiplet) og kommunenavn fra public/kommuner.json (Kartverket, forenklet).
+async function tegnKommuner(k) {
+  let data;
+  try { data = await fetch('/kommuner.json').then((r) => r.json()); } catch { return; }
+  L.geoJSON(data, {
+    interactive: false,
+    style: { color: '#8C9494', weight: 1.3, opacity: 0.9, dashArray: '4 5', fill: false },
+  }).addTo(k);
+  const navn = L.layerGroup(data.features.map((f) => L.marker([f.properties.punkt[1], f.properties.punkt[0]], {
+    interactive: false, keyboard: false,
+    icon: L.divIcon({ className: 'kommune-navn', html: '<span>' + esc(f.properties.navn) + '</span>', iconSize: null }),
+  }))).addTo(k);
+  // Navnene skjules når man zoomer langt inn.
+  const visNavn = () => { if (k.getZoom() >= 13) k.removeLayer(navn); else if (!k.hasLayer(navn)) navn.addTo(k); };
+  k.on('zoomend', visNavn);
+  visNavn();
+}
+
+let minPosisjon = null;
+function visMinPosisjon() {
+  if (!navigator.geolocation) { melding('Nettleseren kan ikke vise posisjonen din'); return; }
+  navigator.geolocation.getCurrentPosition((p) => {
+    const punkt = [p.coords.latitude, p.coords.longitude];
+    const k = kartTilstand.kart;
+    if (minPosisjon) minPosisjon.setLatLng(punkt);
+    else minPosisjon = L.circleMarker(punkt, { radius: 8, color: '#FFFFFF', weight: 3, fillColor: '#2563EB', fillOpacity: 1 }).bindTooltip('Du er her').addTo(k);
+    k.flyTo(punkt, Math.max(k.getZoom(), 13), { duration: 0.8 });
+  }, () => melding('Fikk ikke tilgang til posisjonen din'), { enableHighAccuracy: true, timeout: 10000 });
 }

@@ -820,53 +820,123 @@ main:has(#fane-selskaper:not([hidden])), main:has(#fane-plikt:not([hidden])) { m
 }
 .kart-hint { font-size: 11px; font-weight: 500; letter-spacing: 0; text-transform: none; margin-left: 6px; }
 
-/* --- Kart på hele siden, med panelet som overlegg --------------------------------- */
-.kart-modus main { max-width: none; padding: 0; }
+/* --- Kartsiden: grønn ramme, kartet og panelet som kort side om side --------------- */
+.kart-modus main { max-width: none; padding: 16px; background: var(--ridge-front); }
 .kart-modus #hero-side { display: none !important; }
 .kart-modus .synk-banner { margin-bottom: 12px; }
-.kart-oppsett { display: block; position: relative; }
-.kart-ramme { border-radius: 0; box-shadow: none; }
-.kart { height: calc(100dvh - var(--kart-topp, 80px)); min-height: 420px; }
-.kart-overlegg-topp { top: 16px; left: 16px; right: 416px; }
+.kart-oppsett { display: grid; grid-template-columns: minmax(0, 1fr) 320px; gap: 16px; align-items: stretch; position: relative; }
+.kart-ramme { position: relative; border-radius: 24px; overflow: hidden; box-shadow: none; background: #F4F1EA; }
+.kart { height: calc(100dvh - var(--kart-topp, 80px) - 32px); min-height: 460px; background: #F4F1EA; }
+.leaflet-container { background: #DCE5E8; }
+/* Kartverkets topografiske kart, lyst og dempet: lys grunn, blågrått vann. */
+.kart-fliser { filter: saturate(0.22) brightness(1.07) contrast(0.86); opacity: 1; }
+
+/* Tittelkort og tallpiller oppå kartet */
+.kart-overlegg-topp { top: 16px; left: 16px; right: 76px; display: flex; flex-wrap: wrap; align-items: flex-start; gap: 10px; }
+.kart-tittelkort {
+  background: #fff; border-radius: 18px; padding: 12px 18px; box-shadow: 0 2px 10px rgba(26, 43, 43, 0.12);
+  display: flex; flex-direction: column; gap: 2px; margin-right: 4px;
+}
+.kart-tittelkort h1 { margin: 0; font-size: 20px; font-weight: 800; letter-spacing: -0.01em; color: var(--ink); line-height: 1.2; }
+.kart-tittelkort span { font-size: 13px; color: var(--muted); }
+.kart-tall-rad { display: flex; flex-wrap: wrap; gap: 8px; align-self: center; }
+.kart-tall-brikke {
+  background: #fff; backdrop-filter: none; box-shadow: 0 2px 10px rgba(26, 43, 43, 0.12); padding: 9px 16px; font-size: 13px;
+}
+.kart-tall-brikke.mork { background: var(--ink); color: var(--dark-text); }
+.kart-tall-brikke.mork b { color: var(--sun); }
+
+/* Kontroller oppe til høyre: hvite, avrundede firkanter */
+.leaflet-top.leaflet-right { top: 16px; right: 16px; }
+.leaflet-top.leaflet-right .leaflet-control { margin: 0 0 10px; }
+.leaflet-touch .leaflet-bar, .leaflet-bar { border: 0; border-radius: 14px; box-shadow: 0 2px 10px rgba(26, 43, 43, 0.12); }
+.leaflet-bar a, .leaflet-touch .leaflet-bar a { background: #fff; border-bottom: 1px solid var(--line); }
+.leaflet-bar a:last-child { border-bottom: 0; }
+.leaflet-bar a:hover { background: var(--bg); color: var(--ink); }
+.kart-posisjon {
+  width: 44px; height: 44px; border: 0; border-radius: 14px; background: #fff; color: var(--ink); cursor: pointer;
+  display: grid; place-items: center; box-shadow: 0 2px 10px rgba(26, 43, 43, 0.12);
+}
+.kart-posisjon:hover { background: var(--bg); }
+.kart-posisjon svg { width: 20px; height: 20px; fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; }
+.leaflet-bottom .leaflet-control-attribution { margin: 0; border-radius: 12px 0 0 0; }
+.leaflet-bottom.leaflet-right { right: 0; bottom: 0; }
+
+/* Kommunenavn */
+.kommune-navn { width: 0 !important; height: 0 !important; }
+.kommune-navn span {
+  position: absolute; transform: translate(-50%, -50%); white-space: nowrap; font-size: 11px; font-weight: 700;
+  letter-spacing: 0.18em; text-transform: uppercase; color: #7E8A8A; pointer-events: none;
+  text-shadow: 0 0 3px #fff, 0 0 3px #fff, 0 0 6px #fff;
+}
+
+/* Panelet: kremfarget kort til høyre */
 .kart-panel {
-  position: absolute; top: 16px; right: 16px; bottom: 16px; width: 380px; z-index: 3; margin: 0; overflow-y: auto; max-height: none;
-  background: rgba(255, 255, 255, 0.95); backdrop-filter: blur(10px); border-radius: 24px; padding: 22px;
-  box-shadow: 0 10px 30px rgba(26, 43, 43, 0.18);
+  position: relative; top: auto; right: auto; bottom: auto; left: auto; margin: 0; width: auto; height: calc(100dvh - var(--kart-topp, 80px) - 32px); min-height: 460px; max-height: none;
+  overflow-y: auto; background: var(--bg); backdrop-filter: none; border-radius: 24px; padding: 24px 22px; box-shadow: none; z-index: 1;
 }
-.kart-panel.lukket { bottom: auto; overflow: hidden; }
-.kart-panel.lukket .kart-panel-innhold { display: none; }
-.kart-panel.lukket .kart-panel-topp { cursor: pointer; }
 .kart-panel-topp { display: flex; justify-content: space-between; align-items: flex-start; gap: 12px; }
-.kart-panel-topp h2 { margin: 4px 0 0; font-size: 22px; }
-.kart-panel-innhold { margin-top: 16px; }
+.kart-panel-topp h2 { margin: 4px 0 0; font-size: 24px; }
+.kart-panel-innhold { margin-top: 18px; }
+.kart-panel .filter-felt select { background: #fff; }
 .kart-panel-knapp {
-  width: 40px; height: 40px; border-radius: 50%; border: 0; background: var(--bg); color: var(--ink);
-  display: grid; place-items: center; cursor: pointer; flex: none;
+  width: 40px; height: 40px; border-radius: 50%; border: 0; background: #fff; color: var(--ink);
+  display: none; place-items: center; cursor: pointer; flex: none;
 }
-.kart-panel-knapp:hover { background: var(--line); }
 .kart-panel-knapp .ikon { width: 20px; height: 20px; transition: transform .2s; }
 .kart-panel.lukket .kart-panel-knapp .ikon { transform: rotate(180deg); }
-.leaflet-left .leaflet-control { margin-left: 16px; }
-.leaflet-bottom .leaflet-control { margin-bottom: 16px; }
-.leaflet-bottom .leaflet-control-attribution { margin-bottom: 0; border-radius: 0 var(--r-pille) 0 0; }
 
-@media (max-width: 1023px) {
-  .kart-oppsett { display: block; }
-  .kart-panel { position: absolute; width: 340px; max-height: none; }
-  .kart { height: calc(100dvh - var(--kart-topp, 80px)); min-height: 380px; }
-  .kart-overlegg-topp { right: 372px; }
+/* Enkle avkrysningsbokser til høyre for teksten */
+.kart-valg { display: flex; justify-content: space-between; align-items: center; gap: 12px; min-height: 40px; font-size: 14px; cursor: pointer; }
+.kart-valg input {
+  appearance: none; -webkit-appearance: none; flex: none; width: 20px; height: 20px; margin: 0; border-radius: 6px;
+  border: 1.5px solid #B9B2A0; background: #fff; display: grid; place-items: center; cursor: pointer;
+}
+.kart-valg input:checked { background: var(--accent); border-color: var(--accent); }
+.kart-valg input:checked::after {
+  content: ""; width: 5px; height: 10px; border: solid #fff; border-width: 0 2px 2px 0; transform: translateY(-1px) rotate(45deg);
+}
+.kart-valg input:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+
+/* Revisorene som en loddrett liste med piller */
+.kart-panel .kart-chips { flex-direction: column; align-items: flex-start; gap: 6px; }
+.kart-panel .kart-chip { background: #fff; box-shadow: none; }
+.kart-panel .kart-chip:hover { background: var(--line); }
+.kart-panel .kart-chip.av { background: transparent; box-shadow: inset 0 0 0 1px var(--border); }
+
+@media (min-width: 701px) {
+  .kart-panel.lukket .kart-panel-innhold { display: block; }
+}
+@media (max-width: 1023px) and (min-width: 701px) {
+  .kart-oppsett { grid-template-columns: minmax(0, 1fr) 290px; gap: 12px; }
+  .kart-modus main { padding: 12px; }
+  .kart, .kart-panel { height: calc(100dvh - var(--kart-topp, 80px) - 24px); }
+  .kart-tittelkort span { display: none; }
 }
 @media (max-width: 700px) {
   /* Kartet over menyen nederst, panelet som et ark nederst på kartet. */
-  .kart { height: calc(100dvh - var(--kart-topp, 70px) - 72px - env(safe-area-inset-bottom)); min-height: 320px; }
-  .kart-modus main { padding-bottom: 0; }
-  .kart-overlegg-topp { left: 10px; right: 10px; top: 10px; }
-  .kart-panel { top: auto; left: 10px; right: 10px; bottom: 10px; width: auto; max-height: 62%; border-radius: 22px; padding: 14px 16px; }
-  .kart-panel.lukket { bottom: 10px; top: auto; }
+  .kart-modus main { padding: 8px 8px 0; }
+  .kart-oppsett { display: block; }
+  .kart-ramme { border-radius: 20px; }
+  .kart { height: calc(100dvh - var(--kart-topp, 70px) - 80px - env(safe-area-inset-bottom)); min-height: 320px; }
+  .kart-overlegg-topp { left: 10px; right: 64px; top: 10px; gap: 6px; }
+  .kart-tittelkort { display: none; }
+  .kart-tall-brikke { padding: 5px 10px; font-size: 11px; }
+  .kart-tall-brikke b { font-size: 13px; }
+  .kart-tall-brikke:nth-child(3) { display: none; }
+  .leaflet-top.leaflet-right { top: 10px; right: 10px; }
+  .kart-modus .leaflet-control-zoom { display: none; }
+  .kart-panel {
+    position: absolute; top: auto; left: 10px; right: 10px; bottom: 10px; width: auto; height: auto; min-height: 0; max-height: 62%;
+    border-radius: 22px; padding: 14px 16px; z-index: 3; box-shadow: 0 10px 30px rgba(26, 43, 43, 0.25);
+  }
+  .kart-panel.lukket { overflow: hidden; }
+  .kart-panel.lukket .kart-panel-innhold { display: none; }
+  .kart-panel.lukket .kart-panel-topp { cursor: pointer; }
+  .kart-panel-knapp { display: grid; }
   .kart-panel-topp h2 { font-size: 18px; }
   .kart-panel-topp .kicker { font-size: 11px; }
-  .kart-modus .leaflet-control-zoom { display: none; }
-  .leaflet-bottom.leaflet-left { bottom: 84px; }
+  .kommune-navn span { font-size: 9px; letter-spacing: 0.14em; }
 }
 
 /* --- Potensielle kunder ------------------------------------------------------- */
