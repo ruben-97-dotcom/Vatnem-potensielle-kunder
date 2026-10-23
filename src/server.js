@@ -68,6 +68,11 @@ function iBakgrunnen(lofte) {
 
 app.get('/api/cron/synk', a(async (req, res) => {
   if (!harCronTilgang(req)) return res.status(401).json({ feil: 'Ikke tilgang' });
+  // ?status=1 viser bare status (for feilsøking), uten å starte noe.
+  if (req.query.status) {
+    const { jobb, ...status } = await brreg.synkStatus();
+    return res.json({ ...status, jobb: jobb && { type: jobb.type, startet: jobb.startet, antall: jobb.antall } });
+  }
   // Svarer med en gang og jobber videre i bakgrunnen, så kallet ikke blir stående og vente.
   iBakgrunnen(kjorOgFortsett('auto'));
   res.json({ ok: true, startet: new Date().toISOString() });
