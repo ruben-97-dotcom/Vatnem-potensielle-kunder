@@ -177,9 +177,9 @@ function byggFilter(q, bruker) {
   if (q.ek === 'negativ') where.push('egenkapital <= 0');
   if (q.ek === 'ukjent') where.push('egenkapital IS NULL');
   if (q.revisor === 'har') where.push('revisor_orgnr IS NOT NULL');
-  else if (q.revisor === 'ingen') where.push('revisor_orgnr IS NULL');
+  else if (q.revisor === 'ingen') where.push('(revisor_orgnr IS NULL AND roller_hentet = 1)');
   else if (q.revisor === 'fravalgt') where.push('fravalg_revisjon = 1');
-  else if (q.revisor === 'plikt_uten') where.push('revisjonspliktig = 1 AND revisor_orgnr IS NULL');
+  else if (q.revisor === 'plikt_uten') where.push('revisjonspliktig = 1 AND (revisor_orgnr IS NULL AND roller_hentet = 1)');
   else if (/^\d{9}$/.test(q.revisor || '')) { where.push('revisor_orgnr = :revisor'); p.revisor = q.revisor; }
   if (q.min_inntekt) { where.push('driftsinntekter >= :min_inntekt'); p.min_inntekt = Number(q.min_inntekt) || 0; }
   if (q.min_ansatte) { where.push('ansatte >= :min_ansatte'); p.min_ansatte = Number(q.min_ansatte) || 0; }
@@ -192,9 +192,9 @@ function byggFilter(q, bruker) {
   if (q.oppfolging === 'forfalt') { where.push('oppfolging_dato <= :idag'); p.idag = iDag(); }
   if (q.oppfolging === 'planlagt') where.push('oppfolging_dato IS NOT NULL');
   if (q.prioritet === '1') where.push('prioritet = 1');
-  if (q.plikt === 'over_uten') where.push("revisjonspliktig = 1 AND revisor_orgnr IS NULL AND orgform IN ('AS', 'SA')");
-  if (q.plikt === 'naer') where.push("revisjonspliktig = 0 AND revisor_orgnr IS NULL AND plikt_andel >= 0.7 AND orgform IN ('AS', 'SA')");
-  if (q.plikt === 'alle') where.push("revisor_orgnr IS NULL AND orgform IN ('AS', 'SA') AND (revisjonspliktig = 1 OR plikt_andel >= 0.7)");
+  if (q.plikt === 'over_uten') where.push("revisjonspliktig = 1 AND (revisor_orgnr IS NULL AND roller_hentet = 1) AND orgform IN ('AS', 'SA')");
+  if (q.plikt === 'naer') where.push("revisjonspliktig = 0 AND (revisor_orgnr IS NULL AND roller_hentet = 1) AND plikt_andel >= 0.7 AND orgform IN ('AS', 'SA')");
+  if (q.plikt === 'alle') where.push("(revisor_orgnr IS NULL AND roller_hentet = 1) AND orgform IN ('AS', 'SA') AND (revisjonspliktig = 1 OR plikt_andel >= 0.7)");
   if (/^\d+$/.test(q.nye || '')) { where.push("stiftet >= date('now', :nye_dager)"); p.nye_dager = `-${Number(q.nye)} days`; }
   if (q.tilknyttet === 'ukontaktet') where.push(`NOT EXISTS (${TILKNYTTET_KONTAKTET} WHERE p1.orgnr = v_selskaper.orgnr AND ${ER_KONTAKTET})`);
   if (q.kunder !== 'vis') where.push('er_kunde = 0');
@@ -210,7 +210,7 @@ const SORTERING = {
 };
 
 const LISTEFELT = `orgnr, navn, orgform, kommune, nace_tekst, ansatte, daglig_leder, styreleder, revisor_navn, revisor_orgnr,
-  regnskapsforer_navn, regnskap_aar, driftsinntekter, aarsresultat, egenkapital, sum_eiendeler, sum_gjeld, fravalg_revisjon,
+  regnskapsforer_navn, regnskap_aar, driftsinntekter, aarsresultat, egenkapital, sum_eiendeler, sum_gjeld, fravalg_revisjon, roller_hentet,
   revisjonspliktig, er_kunde, status, ringt, sist_kontaktet, oppfolging_dato, ansvarlig_id, prioritet, poeng, telefon, mobil,
   plikt_andel, stiftet, dl_telefon, sl_telefon`;
 
@@ -467,7 +467,7 @@ app.get('/api/oversikt', a(async (req, res) => {
   const [statusRader, tall, forfalt, forfaltAlle, kunder, sisteAktivitet, sisteVarsler, nye, naerPlikt, uleste, maal] = await Promise.all([
     db.alle(`SELECT status, COUNT(*) n ${base} GROUP BY status`),
     db.en(`SELECT COUNT(*) totalt, SUM(ringt) ringt, SUM(egenkapital > 0) ek_positiv,
-      SUM(revisor_orgnr IS NULL AND revisjonspliktig = 1) plikt_uten_revisor ${base}`),
+      SUM((revisor_orgnr IS NULL AND roller_hentet = 1) AND revisjonspliktig = 1) plikt_uten_revisor ${base}`),
     db.en(`SELECT COUNT(*) n ${base} AND oppfolging_dato <= ? AND ansvarlig_id = ?`, [iDag(), req.bruker.id]),
     db.en(`SELECT COUNT(*) n ${base} AND oppfolging_dato <= ?`, [iDag()]),
     db.en('SELECT COUNT(*) n FROM v_selskaper WHERE aktiv = 1 AND er_kunde = 1'),
@@ -477,8 +477,8 @@ app.get('/api/oversikt', a(async (req, res) => {
     db.alle(`SELECT h.*, s.navn FROM hendelser h JOIN selskaper s ON s.orgnr = h.orgnr
       WHERE s.aktiv = 1 ORDER BY h.tidspunkt DESC, h.id DESC LIMIT 8`),
     db.en("SELECT COUNT(*) n FROM selskaper WHERE aktiv = 1 AND stiftet >= date('now', '-30 days')"),
-    db.en(`SELECT SUM(revisjonspliktig = 1 AND revisor_orgnr IS NULL) over_uten,
-      SUM(revisjonspliktig = 0 AND revisor_orgnr IS NULL AND plikt_andel >= 0.7) naer ${base}`),
+    db.en(`SELECT SUM(revisjonspliktig = 1 AND (revisor_orgnr IS NULL AND roller_hentet = 1)) over_uten,
+      SUM(revisjonspliktig = 0 AND (revisor_orgnr IS NULL AND roller_hentet = 1) AND plikt_andel >= 0.7) naer ${base}`),
     ulesteVarsler(req.bruker.id),
     maalMedFremdrift(),
   ]);

@@ -50,7 +50,7 @@ async function batch(setninger) {
 
 // --- Skjema --------------------------------------------------------------------
 // Øk versjonen når tabeller eller visningen endres; da kjøres oppsettet på nytt.
-const SKJEMA_VERSJON = '7';
+const SKJEMA_VERSJON = '8';
 
 const TABELLER = `
   CREATE TABLE IF NOT EXISTS selskaper (
@@ -108,7 +108,7 @@ const VISNING = `
     + CASE WHEN x.ansatte >= 50 THEN 10 WHEN x.ansatte >= 10 THEN 8 WHEN x.ansatte >= 3 THEN 5 WHEN x.ansatte >= 1 THEN 3 ELSE 0 END
     + CASE WHEN x.aarsresultat > 0 THEN 10 ELSE 0 END
     + CASE WHEN x.revisjonspliktig = 1 THEN 10 ELSE 0 END
-    + CASE WHEN x.revisjonspliktig = 1 AND x.revisor_orgnr IS NULL THEN 10 ELSE 0 END
+    + CASE WHEN x.revisjonspliktig = 1 AND x.revisor_orgnr IS NULL AND x.roller_hentet = 1 THEN 10 ELSE 0 END
     + CASE WHEN x.regnskap_aar >= CAST(strftime('%Y', 'now') AS INTEGER) - 2 THEN 10 ELSE 0 END
     ) AS poeng,
     MAX(COALESCE(x.driftsinntekter, 0) / ${T.driftsinntekter}.0,

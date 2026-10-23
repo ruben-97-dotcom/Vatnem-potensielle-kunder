@@ -730,7 +730,7 @@ async function lastListe() {
       <td><button class="lenke-knapp selskap-navn" type="button">${esc(r.navn)}</button><div class="under">${esc(r.orgnr)}<span class="kommune-tekst"> · ${esc(r.kommune)}</span> · ${esc(r.orgform)}${r.nace_tekst ? ' · ' + esc(r.nace_tekst) : ''}</div>${tilknytningMerke(r)}</td>
       <td>${esc(r.kommune)}</td>
       <td class="celle-person"><div>${esc(r.daglig_leder) || '<span class="tom">–</span>'}${r.dl_telefon ? ` <span class="dempet">${ikon('telefon')} ${esc(r.dl_telefon)}</span>` : ''}</div><div class="under">${r.styreleder ? 'Styreleder: ' + esc(r.styreleder) : ''}${r.sl_telefon ? ' · ' + ikon('telefon') + ' ' + esc(r.sl_telefon) : ''}</div></td>
-      <td class="celle-person">${r.revisor_navn ? esc(r.revisor_navn) : r.fravalg_revisjon ? '<span class="dempet">Valgt bort</span>' : r.revisjonspliktig ? '<span class="merkelapp m-amber">Ingen – pliktig?</span>' : '<span class="tom">Ingen</span>'}</td>
+      <td class="celle-person">${r.revisor_navn ? esc(r.revisor_navn) : !r.roller_hentet ? '<span class="tom">Hentes…</span>' : r.fravalg_revisjon ? '<span class="dempet">Valgt bort</span>' : r.revisjonspliktig ? '<span class="merkelapp m-amber">Ingen – pliktig?</span>' : '<span class="tom">Ingen</span>'}</td>
       <td class="celle-person" title="${esc(r.regnskapsforer_navn || '')}">${esc(r.regnskapsforer_navn) || '<span class="tom">Ingen registrert</span>'}</td>
       <td class="tall">${kr(r.driftsinntekter)}${r.regnskap_aar && r.regnskap_aar !== tilstand.meta.sisteRegnskapsaar ? `<div class="under">${r.regnskap_aar}</div>` : ''}</td>
       <td class="tall">${ekCelle(r.egenkapital)}</td>
