@@ -184,21 +184,31 @@
       <!-- Kart -->
       <section id="fane-kart" class="fane-innhold" hidden>
         <div class="kart-oppsett">
-          <div class="kort kart-kort">
+          <div class="kart-ramme">
             <div id="kart" class="kart" role="region" aria-label="Kart over selskapene i regionen"></div>
+            <div class="kart-overlegg kart-overlegg-topp" id="kart-tall" aria-live="polite"></div>
           </div>
-          <aside class="kort kart-panel" aria-label="Valg for kartet">
-            <h2>Vis på kartet</h2>
+          <aside class="kort kart-panel" aria-label="I dette området">
+            <div class="kicker">I dette området</div>
+            <h2 id="kart-omrade-tittel">Kartutsnittet</h2>
             <label class="filter-felt"><span>Gå til kommune</span>
               <select id="kart-kommune"><option value="">Hele regionen</option></select>
             </label>
-            <label class="bryter"><input type="checkbox" id="kart-passer"> Bare selskaper som passer for Vatnem</label>
-            <label class="bryter"><input type="checkbox" id="kart-ukontaktet"> Skjul selskaper som er kontaktet</label>
-            <div class="kart-forklaring-topp">
-              <h3>Revisor</h3>
-              <button type="button" class="tekstknapp" id="kart-alle">Vis alle</button>
+            <label class="bryter bryter-switch"><input type="checkbox" id="kart-passer"><span>Bare selskaper som passer for Vatnem</span></label>
+            <label class="bryter bryter-switch"><input type="checkbox" id="kart-ukontaktet"><span>Skjul selskaper som er kontaktet</span></label>
+
+            <div class="kart-seksjon">
+              <h3>Revisorer <span class="dempet kart-hint">klikk for å skjule</span></h3>
+              <div class="kart-chips" id="kart-forklaring"></div>
             </div>
-            <ul id="kart-forklaring" class="kart-forklaring"></ul>
+            <div class="kart-seksjon">
+              <h3>Beste muligheter her</h3>
+              <ol id="kart-muligheter" class="kart-liste"></ol>
+            </div>
+            <div class="kart-seksjon">
+              <h3>Våre kunder her</h3>
+              <ul id="kart-kunder" class="kart-liste"></ul>
+            </div>
             <p id="kart-info" class="dempet kart-info"></p>
           </aside>
         </div>

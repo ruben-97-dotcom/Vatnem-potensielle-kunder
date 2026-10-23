@@ -553,7 +553,7 @@ app.get('/api/kart', a(async (req, res) => {
   const P = VATNEM_PROFIL;
   const [rader, revisorer, antall] = await Promise.all([
     db.alle(`SELECT orgnr, navn, lat, lon, geo_status, revisor_orgnr, driftsinntekter, ansatte, status, ringt, er_kunde,
-        roller_hentet, kommunenr, fravalg_revisjon, revisjonspliktig,
+        roller_hentet, kommunenr, fravalg_revisjon, revisjonspliktig, poeng, kommune,
         CASE WHEN driftsinntekter >= ${P.minInntekt} AND driftsinntekter <= ${P.maksInntekt}
           AND (ansatte IS NULL OR ansatte <= ${P.maksAnsatte}) THEN 1 ELSE 0 END AS passer
       FROM v_selskaper WHERE aktiv = 1 AND lat IS NOT NULL AND kommunenr IN (${KOMMUNER.map((k) => `'${k.nr}'`).join(',')})`),
@@ -565,12 +565,12 @@ app.get('/api/kart', a(async (req, res) => {
   const statusIndeks = new Map(STATUSER.map((s, i) => [s.kode, i]));
   res.json({
     felt: ['orgnr', 'navn', 'lat', 'lon', 'omtrentlig', 'revisor', 'inntekt', 'ansatte', 'status', 'ringt', 'passer', 'kunde',
-      'kommunenr', 'rollerHentet', 'fravalg', 'pliktig'],
+      'kommunenr', 'rollerHentet', 'fravalg', 'pliktig', 'poeng', 'kommune'],
     rader: rader.map((r) => [
       r.orgnr, r.navn, Math.round(r.lat * 1e5) / 1e5, Math.round(r.lon * 1e5) / 1e5, r.geo_status === 'adresse' ? 0 : 1,
       r.revisor_orgnr ? indeks.get(r.revisor_orgnr) : -1, r.driftsinntekter === null ? null : Math.round(r.driftsinntekter / 1000),
       r.ansatte, statusIndeks.get(r.status) ?? 0, r.ringt, r.passer, r.er_kunde, r.kommunenr, r.roller_hentet, r.fravalg_revisjon,
-      r.revisjonspliktig,
+      r.revisjonspliktig, r.poeng, r.kommune,
     ]),
     revisorer: revisorer.map((r) => [r.orgnr, r.navn, r.antall]),
     totalt: antall.n,
