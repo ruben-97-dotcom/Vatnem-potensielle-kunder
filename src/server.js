@@ -26,6 +26,8 @@ app.use((req, res, next) => {
 app.use(express.json({ limit: '50kb' }));
 // Lokalt serveres filene i public/ herfra. På Vercel serveres de direkte av Vercel.
 if (!PA_VERCEL) app.use(express.static(path.join(__dirname, '..', 'public')));
+// Reserve på Vercel: rotadressen sendes til forsiden, som Vercel serverer som statisk fil.
+if (PA_VERCEL) app.get('/', (req, res) => res.redirect(302, '/index.html'));
 
 // --- Planlagt oppdatering (Vercel Cron og videreføring) ----------------------------
 // Vercel Cron kaller denne med «Authorization: Bearer <CRON_SECRET>». Samme nøkkel brukes når
