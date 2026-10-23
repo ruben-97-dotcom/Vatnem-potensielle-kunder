@@ -37,6 +37,8 @@ som ikke blir ferdig, fortsetter der den slapp.
   og av Vercel Cron hver natt. Lokalt kjøres den hvert 30. minutt.
 - **Full oppdatering** av alle selskaper, roller og regnskap: automatisk hvis den forrige er over en uke gammel.
 - Begge kan startes manuelt fra oversiktssiden. Oppdateringene rører aldri statuser, notater eller annen oppfølging.
+- Mens en oppdatering pågår, vises et banner øverst på alle sider med fremdrift, slik at dere vet at tallene ikke
+  er komplette ennå. Banneret forsvinner og siden lastes på nytt når oppdateringen er ferdig.
 
 ### Felles mål
 
@@ -78,15 +80,26 @@ telefonnummer, og knapper som søker opp personen hos 1881 og Gulesider.
 - **Revisormarkedet**: hvilke revisorer som har kundene i regionen
 - Filtre på kommune, status, egenkapital, revisor, størrelse, bransje m.m., og eksport til CSV (Excel)
 
+### Passer for Vatnem
+
+Vatnem Revisjon er et mindre revisjonsselskap, så forslagene er rettet mot mindre og mellomstore selskaper.
+Profilen ligger i `VATNEM_PROFIL` i `src/config.js`: driftsinntekter fra 1 til 50 mill og maks 50 ansatte.
+Ringelisten og «Neste steg opp» viser bare selskaper innenfor profilen, og filteret «Størrelse → Passer for
+Vatnem» under «Flere filtre» gjør det samme i selskapslisten.
+
 ### Prioriteringspoeng (0–100)
 
-Poengene er ment som en hjelp til å sortere ringelisten:
+Poengene sorterer ringelisten og er tilpasset Vatnem, så mindre og mellomstore selskaper scorer høyest:
 
 | Kriterium | Poeng |
 |---|---|
 | Positiv egenkapital | 20 |
-| Driftsinntekter (fra 0,5 mill til over 100 mill) | 3–30 |
-| Antall ansatte | 3–10 |
+| Driftsinntekter 7–50 mill (revisjonspliktig størrelse) | 30 |
+| Driftsinntekter 3–7 mill | 22 |
+| Driftsinntekter 1–3 mill | 12 |
+| Driftsinntekter 50–100 mill | 8 |
+| Over 100 mill eller under 1 mill | 0 |
+| 1–50 ansatte | 10 |
 | Positivt årsresultat | 10 |
 | Trolig revisjonspliktig | 10 |
 | Trolig revisjonspliktig, men har ingen revisor | +10 |

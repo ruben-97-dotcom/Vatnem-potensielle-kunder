@@ -65,6 +65,7 @@
           </button>
         </div>
       </header>
+      <div id="synk-banner" class="synk-banner" role="status" aria-live="polite" hidden></div>
 
       <!-- Toppfelt med fjell (Oversikt) -->
       <div id="hero-oversikt" class="hero hero-fjell" hidden>
@@ -230,6 +231,12 @@
           <div id="filter-flere" class="filter-flere" hidden>
             <fieldset class="filter-gruppe">
               <legend>Økonomi</legend>
+              <label class="filter-felt"><span>Størrelse</span>
+                <select name="profil">
+                  <option value="">Alle størrelser</option>
+                  <option value="vatnem" id="profil-valg">Passer for Vatnem</option>
+                </select>
+              </label>
               <label class="filter-felt"><span>Egenkapital</span>
                 <select name="ek">
                   <option value="">Alle</option>

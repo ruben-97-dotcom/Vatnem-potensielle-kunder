@@ -4,7 +4,7 @@ const express = require('express');
 const db = require('./db');
 const auth = require('./auth');
 const brreg = require('./brreg');
-const { PORT, KOMMUNER, STATUSER, VATNEM_ORGNR, REVISJONSPLIKT } = require('./config');
+const { PORT, KOMMUNER, STATUSER, VATNEM_ORGNR, REVISJONSPLIKT, VATNEM_PROFIL } = require('./config');
 
 const PA_VERCEL = Boolean(process.env.VERCEL);
 const ENDRINGER_INTERVALL_MIN = Number(process.env.ENDRINGER_INTERVALL_MIN) || 30;
@@ -183,6 +183,10 @@ function byggFilter(q, bruker) {
   else if (/^\d{9}$/.test(q.revisor || '')) { where.push('revisor_orgnr = :revisor'); p.revisor = q.revisor; }
   if (q.min_inntekt) { where.push('driftsinntekter >= :min_inntekt'); p.min_inntekt = Number(q.min_inntekt) || 0; }
   if (q.min_ansatte) { where.push('ansatte >= :min_ansatte'); p.min_ansatte = Number(q.min_ansatte) || 0; }
+  if (q.profil === 'vatnem') {
+    where.push(`driftsinntekter >= ${VATNEM_PROFIL.minInntekt} AND driftsinntekter <= ${VATNEM_PROFIL.maksInntekt}
+      AND (ansatte IS NULL OR ansatte <= ${VATNEM_PROFIL.maksAnsatte})`);
+  }
   if (q.bransje) { where.push('(nace_tekst LIKE :bransje OR nace_kode LIKE :bransje_kode)'); p.bransje = `%${q.bransje}%`; p.bransje_kode = `${q.bransje}%`; }
   const orgformer = liste(q.orgform).filter((o) => /^[A-Z]{2,3}$/.test(o));
   if (orgformer.length) where.push(`orgform IN (${orgformer.map((o) => `'${o}'`).join(',')})`);
@@ -515,6 +519,7 @@ app.get('/api/meta', a(async (req, res) => {
     statuser: STATUSER,
     brukere,
     revisjonsplikt: REVISJONSPLIKT,
+    profil: VATNEM_PROFIL,
     sisteRegnskapsaar: aar?.aar,
     synk: {
       kjorer: status.kjorer,

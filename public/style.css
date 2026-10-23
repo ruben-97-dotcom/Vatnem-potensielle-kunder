@@ -678,3 +678,26 @@ main:has(#fane-selskaper:not([hidden])), main:has(#fane-plikt:not([hidden])) { m
   .merke-etappe.forste-etappe { transform: translate(-10px, -100%); }
   .merke-etappe.topp-etappe { transform: translate(calc(-100% + 10px), -100%); }
 }
+
+/* --- Banner når portalen henter data fra Brreg ------------------------------- */
+.synk-banner {
+  display: flex; gap: 14px; align-items: flex-start; max-width: 1408px; margin: 0 auto 16px; padding: 14px 18px;
+  border-radius: var(--r-liten); background: var(--card); border: 1.5px solid var(--border); color: var(--ink);
+}
+.synk-banner.viktig { background: var(--dark); border-color: var(--dark); color: #fff; }
+.synk-banner.viktig .synk-banner-tekst { color: var(--dark-text); }
+.synk-banner-innhold { flex: 1; min-width: 0; }
+.synk-banner-tall { margin-left: 8px; font-variant-numeric: tabular-nums; color: var(--accent); font-weight: 700; }
+.synk-banner.viktig .synk-banner-tall { color: var(--dark-kicker); }
+.synk-banner-tekst { font-size: 14px; color: var(--muted); margin-top: 2px; }
+.synk-spor { height: 6px; border-radius: var(--r-pille); background: var(--line); margin-top: 10px; overflow: hidden; }
+.synk-banner.viktig .synk-spor { background: rgba(255, 255, 255, 0.15); }
+.synk-fyll { height: 100%; border-radius: var(--r-pille); background: var(--sun); transition: width .6s ease; }
+.spinner {
+  flex: none; width: 20px; height: 20px; margin-top: 2px; border-radius: 50%;
+  border: 3px solid rgba(242, 140, 56, 0.25); border-top-color: var(--sun); animation: snurr 0.9s linear infinite;
+}
+@keyframes snurr { to { transform: rotate(360deg); } }
+@media (prefers-reduced-motion: reduce) { .spinner { animation: none; border-color: var(--sun); } }
+@media (max-width: 1440px) { .synk-banner { margin-left: 32px; margin-right: 32px; } }
+@media (max-width: 700px) { .synk-banner { margin: 0 16px 12px; padding: 12px 14px; } }

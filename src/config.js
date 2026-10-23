@@ -23,6 +23,14 @@ const VATNEM_ORGNR = '988075167';
 
 // Grenser for når et AS kan velge bort revisjon (regnskapsloven/aksjeloven § 7-6).
 // Alle tre må være under grensen for å kunne velge bort revisjon.
+// Hva som er en passende kunde for Vatnem (mindre og mellomstore selskaper).
+// Brukes av ringelisten, «Neste steg opp» og prioriteringspoengene.
+const VATNEM_PROFIL = {
+  minInntekt: 1_000_000,
+  maksInntekt: 50_000_000,
+  maksAnsatte: 50,
+};
+
 const REVISJONSPLIKT = {
   driftsinntekter: 7_000_000,
   sumEiendeler: 27_000_000,
@@ -46,6 +54,7 @@ module.exports = {
   ORGANISASJONSFORMER,
   VATNEM_ORGNR,
   REVISJONSPLIKT,
+  VATNEM_PROFIL,
   STATUSER,
   PORT: Number(process.env.PORT) || 3000,
   DATA_DIR: process.env.DATA_DIR || path.join(__dirname, '..', 'data'),

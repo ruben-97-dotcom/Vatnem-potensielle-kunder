@@ -112,9 +112,21 @@ async function start() {
   fyllFilterValg();
   lastFilter();
   byttFane(location.hash.slice(1) || 'oversikt');
+  varAktiv = visSynkBanner(tilstand.meta.synk);
+  sjekkSynk();
+}
+
+// «Passer for Vatnem (1–50 mill, maks 50 ansatte)» fra profilen i config.js.
+function profilTekst() {
+  const p = tilstand.meta?.profil;
+  if (!p) return 'passer for Vatnem';
+  const mill = (v) => (v / 1e6).toLocaleString('nb-NO', { maximumFractionDigits: 1 });
+  return `passer for Vatnem (${mill(p.minInntekt)}–${mill(p.maksInntekt)} mill, maks ${p.maksAnsatte} ansatte)`;
 }
 
 function fyllFilterValg() {
+  const profilValg = $('#profil-valg');
+  if (profilValg) profilValg.textContent = profilTekst().replace(/^p/, 'P');
   const m = tilstand.meta;
   const f = $('#filter');
   f.kommune.length = 1;
@@ -148,6 +160,55 @@ function penNavn(navn) {
 // Kort revisornavn til små flater: "CEDRA NORGE AS" → "Cedra".
 const kortRevisor = (navn) => penNavn(navn).replace(/\s+(Norge\s+)?AS$/, '');
 const lokalIDag = () => new Date().toLocaleDateString('sv-SE');
+
+// --- Banner når portalen henter data -------------------------------------------
+let synkTimer = null;
+let varAktiv = false;
+
+function visSynkBanner(s) {
+  const el = $('#synk-banner');
+  const full = s?.fase === 'Full oppdatering';
+  const vis = Boolean(s?.kjorer);
+  el.hidden = !vis;
+  if (!vis) return false;
+  const pst = s.totalt ? Math.min(100, Math.round((s.ferdig / s.totalt) * 100)) : null;
+  const tittel = full
+    ? (s.totalt ? 'Henter roller og regnskap for alle selskaper fra Brønnøysundregistrene' : 'Henter selskapslisten fra Brønnøysundregistrene')
+    : 'Sjekker Brønnøysundregistrene for endringer';
+  el.classList.toggle('viktig', full);
+  el.innerHTML = `<span class="spinner" aria-hidden="true"></span>
+    <div class="synk-banner-innhold">
+      <div><strong>${tittel}</strong>
+        ${pst !== null ? `<span class="synk-banner-tall">${nf.format(s.ferdig)} av ${nf.format(s.totalt)} (${pst} %)</span>` : ''}</div>
+      <div class="synk-banner-tekst">${full ? 'Tall, lister og revisorer er ikke komplette før dette er ferdig.' : 'Noen selskaper kan endre seg i løpet av kort tid.'}</div>
+      ${pst !== null ? '<div class="synk-spor"><div class="synk-fyll"></div></div>' : ''}
+    </div>`;
+  const fyll = $('.synk-fyll', el);
+  if (fyll) fyll.style.width = pst + '%';
+  return true;
+}
+
+// Sjekker status jevnlig: ofte mens noe pågår, sjeldnere ellers.
+async function sjekkSynk() {
+  clearTimeout(synkTimer);
+  if ($('#portal').hidden) return;
+  let aktiv = false;
+  if (!document.hidden) {
+    try {
+      const m = await api('/api/meta');
+      tilstand.meta = m;
+      visVarselTeller(m.ulesteVarsler);
+      aktiv = visSynkBanner(m.synk);
+      if (varAktiv && !aktiv) {
+        melding('Oppdateringen fra Brønnøysundregistrene er ferdig');
+        byttFane(tilstand.fane);
+      }
+      varAktiv = aktiv;
+    } catch { /* prøver igjen senere */ }
+  }
+  synkTimer = setTimeout(sjekkSynk, aktiv ? 5000 : 60000);
+}
+document.addEventListener('visibilitychange', () => { if (!document.hidden) sjekkSynk(); });
 
 // --- Faner ------------------------------------------------------------------
 const SIDETITLER = {
@@ -263,7 +324,7 @@ function tegnHero(o) {
 function tegnNesteSteg(r) {
   const el = $('#neste-steg');
   const topp = `<div class="neste-topp"><span class="kicker">Neste steg opp</span>
-    <span class="dempet neste-kilde">Fra ringelisten «Beste uringte»</span></div>`;
+    <span class="dempet neste-kilde">Fra ringelisten · ${esc(profilTekst())}</span></div>`;
   if (!r) {
     el.innerHTML = topp + '<p class="tom-neste">Ringelisten er tom. Alle selskaper med positiv egenkapital er kontaktet.</p>';
     return;
@@ -333,7 +394,7 @@ function tegnForemelding(revisorer) {
 }
 
 async function lastOversikt() {
-  const ringeliste = new URLSearchParams({ ringt: 'nei', ek: 'positiv', status: 'ny', tilknyttet: 'ukontaktet', sorter: 'poeng', retning: 'desc', per_side: 10 });
+  const ringeliste = new URLSearchParams({ ringt: 'nei', ek: 'positiv', status: 'ny', tilknyttet: 'ukontaktet', profil: 'vatnem', sorter: 'poeng', retning: 'desc', per_side: 10 });
   const rute = new URLSearchParams({ ansvarlig: 'meg', oppfolging: 'forfalt', sorter: 'oppfolging', retning: 'asc', per_side: 10 });
   const [o, meta, revisorer, neste, mineRute] = await Promise.all([
     api('/api/oversikt'), api('/api/meta'), api('/api/revisorer'),
@@ -459,6 +520,7 @@ async function startSynk(type) {
   try {
     await api('/api/synk', { method: 'POST', body: { type } });
     melding(type === 'full' ? 'Full oppdatering startet. Det tar et par minutter.' : 'Sjekker Brreg for endringer…');
+    setTimeout(sjekkSynk, 1500);
     visSynk((await api('/api/meta')).synk);
   } catch (e) { melding(e.message); }
 }
@@ -568,7 +630,7 @@ async function lastPlikt() {
 }
 
 const SNARVEIER = {
-  'ringeliste': { ringt: 'nei', ek: 'positiv', status: 'ny', tilknyttet: 'ukontaktet', sorter: 'poeng' },
+  'ringeliste': { ringt: 'nei', ek: 'positiv', status: 'ny', tilknyttet: 'ukontaktet', profil: 'vatnem', sorter: 'poeng' },
   'mine-forfalte': { ansvarlig: 'meg', oppfolging: 'forfalt', sorter: 'oppfolging', retning: 'asc' },
   'plikt-uten': { revisor: 'plikt_uten', sorter: 'driftsinntekter' },
   'har-revisor': { revisor: 'har', ek: 'positiv', sorter: 'poeng' },
@@ -631,9 +693,9 @@ function lastFilter() {
 const FILTERNAVN = {
   sok: 'Søk', kommune: 'Kommune', status: 'Status', ringt: 'Ringt', ek: 'Egenkapital', min_inntekt: 'Inntekt',
   min_ansatte: 'Ansatte', revisor: 'Revisor', kunder: 'Vatnem-kunder', ansvarlig: 'Ansvarlig', oppfolging: 'Oppfølging',
-  tilknyttet: 'Tilknyttede', bransje: 'Bransje', nye: 'Stiftet', prioritet: 'Prioriterte',
+  tilknyttet: 'Tilknyttede', bransje: 'Bransje', nye: 'Stiftet', prioritet: 'Prioriterte', profil: 'Størrelse',
 };
-const FLERE_FILTRE = ['ek', 'min_inntekt', 'min_ansatte', 'revisor', 'kunder', 'ansvarlig', 'oppfolging', 'tilknyttet', 'bransje', 'nye'];
+const FLERE_FILTRE = ['profil', 'ek', 'min_inntekt', 'min_ansatte', 'revisor', 'kunder', 'ansvarlig', 'oppfolging', 'tilknyttet', 'bransje', 'nye'];
 
 function visAktiveFiltre() {
   const f = $('#filter');

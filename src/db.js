@@ -3,7 +3,7 @@
 const fs = require('node:fs');
 const path = require('node:path');
 const { createClient } = require('@libsql/client');
-const { DATA_DIR, VATNEM_ORGNR, REVISJONSPLIKT } = require('./config');
+const { DATA_DIR, VATNEM_ORGNR, REVISJONSPLIKT, VATNEM_PROFIL } = require('./config');
 
 const url = process.env.TURSO_DATABASE_URL || process.env.LIBSQL_URL;
 const erLokal = !url;
@@ -50,7 +50,7 @@ async function batch(setninger) {
 
 // --- Skjema --------------------------------------------------------------------
 // Øk versjonen når tabeller eller visningen endres; da kjøres oppsettet på nytt.
-const SKJEMA_VERSJON = '8';
+const SKJEMA_VERSJON = '9';
 
 const TABELLER = `
   CREATE TABLE IF NOT EXISTS selskaper (
@@ -97,15 +97,19 @@ const TABELLER = `
 
 // Visning med oppfølging og beregnede felt (revisjonsplikt, prioriteringspoeng og nærhet til revisjonsplikt).
 const T = REVISJONSPLIKT;
+const P = VATNEM_PROFIL;
 const VISNING = `
   DROP VIEW IF EXISTS v_selskaper;
   CREATE VIEW v_selskaper AS
   SELECT x.*,
+    -- Prioriteringspoeng 0–100 tilpasset Vatnem: mindre og mellomstore selskaper scorer høyest.
     ( CASE WHEN x.egenkapital > 0 THEN 20 ELSE 0 END
-    + CASE WHEN x.driftsinntekter >= 100000000 THEN 30 WHEN x.driftsinntekter >= 30000000 THEN 26
-           WHEN x.driftsinntekter >= 10000000 THEN 20 WHEN x.driftsinntekter >= 5000000 THEN 14
-           WHEN x.driftsinntekter >= 2000000 THEN 8 WHEN x.driftsinntekter >= 500000 THEN 3 ELSE 0 END
-    + CASE WHEN x.ansatte >= 50 THEN 10 WHEN x.ansatte >= 10 THEN 8 WHEN x.ansatte >= 3 THEN 5 WHEN x.ansatte >= 1 THEN 3 ELSE 0 END
+    + CASE WHEN x.driftsinntekter >= ${T.driftsinntekter} AND x.driftsinntekter <= ${P.maksInntekt} THEN 30
+           WHEN x.driftsinntekter >= 3000000 AND x.driftsinntekter < ${T.driftsinntekter} THEN 22
+           WHEN x.driftsinntekter >= ${P.minInntekt} AND x.driftsinntekter < 3000000 THEN 12
+           WHEN x.driftsinntekter > ${P.maksInntekt} AND x.driftsinntekter <= ${P.maksInntekt * 2} THEN 8
+           ELSE 0 END
+    + CASE WHEN x.ansatte >= 1 AND x.ansatte <= ${P.maksAnsatte} THEN 10 ELSE 0 END
     + CASE WHEN x.aarsresultat > 0 THEN 10 ELSE 0 END
     + CASE WHEN x.revisjonspliktig = 1 THEN 10 ELSE 0 END
     + CASE WHEN x.revisjonspliktig = 1 AND x.revisor_orgnr IS NULL AND x.roller_hentet = 1 THEN 10 ELSE 0 END

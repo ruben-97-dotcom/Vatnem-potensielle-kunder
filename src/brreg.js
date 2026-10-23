@@ -335,6 +335,8 @@ async function nyJobb(type, antall) {
 
 // Full oppdatering: lagrer alle selskaper i kommunene og legger dem i køen for roller og regnskap.
 async function startFull(logg) {
+  // Jobben registreres med en gang, så portalen kan vise at den jobber.
+  const jobb = await nyJobb('full', null);
   const naa = new Date().toISOString();
   const varsle = (await db.en('SELECT COUNT(*) n FROM selskaper')).n > 0;
   // Feedposisjonene settes før hentingen, så ingen endringer underveis går tapt.
@@ -360,7 +362,7 @@ async function startFull(logg) {
   for (const del of deler(borte, 300)) await db.kjor(`UPDATE selskaper SET aktiv = 0 WHERE orgnr IN (${del.map(() => '?').join(',')})`, del);
 
   await leggIKo([...sett], varsle ? 'full' : 'full_stille');
-  await nyJobb('full', sett.size);
+  await db.kjor('UPDATE synkroniseringer SET antall = ? WHERE id = ?', [sett.size, jobb.id]);
   logg(`Full oppdatering: ${sett.size} selskaper lagt i kø`);
 }
 
@@ -401,6 +403,7 @@ async function startEndringer(logg) {
     if (!siste) return startFull(logg);
     await db.batch([settInnstillingSql('enheter_fra_dato', siste.startet), settInnstillingSql('roller_fra_tid', siste.startet)]);
   }
+  const jobb = await nyJobb('endringer', null);
   const [enheter, roller] = await Promise.all([hentEndredeEnheter(), hentEndredeRoller()]);
   const lagret = new Set((await db.alle('SELECT orgnr FROM selskaper')).map((r) => r.orgnr));
   const aktive = new Set((await db.alle('SELECT orgnr FROM selskaper WHERE aktiv = 1')).map((r) => r.orgnr));
@@ -413,7 +416,7 @@ async function startEndringer(logg) {
   if (enheter.nesteId) posisjon.push(settInnstillingSql('enheter_oppdateringsid', enheter.nesteId));
   if (roller.etterId) posisjon.push(settInnstillingSql('roller_etter_id', roller.etterId));
   if (posisjon.length) await db.batch(posisjon);
-  await nyJobb('endringer', sjekk.length + rollerEndret.length);
+  await db.kjor('UPDATE synkroniseringer SET antall = ? WHERE id = ?', [sjekk.length + rollerEndret.length, jobb.id]);
   logg(`Endringer: ${enheter.endret.size} i hele landet, ${sjekk.length + rollerEndret.length} lagt i kø`);
 }
 
