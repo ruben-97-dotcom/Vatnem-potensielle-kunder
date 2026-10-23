@@ -329,12 +329,6 @@ function tegnNesteSteg(r) {
     el.innerHTML = topp + '<p class="tom-neste">Ringelisten er tom. Alle selskaper med positiv egenkapital er kontaktet.</p>';
     return;
   }
-  const fornavn = (r.daglig_leder || '').split(' ')[0];
-  const tlf = r.dl_telefon || r.mobil || r.telefon;
-  const ringTekst = `${ikon('telefon')} Ring ${esc(fornavn || 'selskapet')}`;
-  const ring = tlf
-    ? `<a class="knapp primar ring-knapp" href="tel:${esc(tlf.replace(/\s/g, ''))}">${ringTekst}</a>`
-    : `<button class="knapp primar ring-knapp" data-apne="${esc(r.orgnr)}" title="Ingen telefon registrert – åpner selskapet">${ringTekst}</button>`;
   const under = [r.nace_tekst, r.kommune, r.daglig_leder ? `${r.daglig_leder}, daglig leder` : null].filter(Boolean).map(esc).join(' · ');
   const revisor = r.revisor_navn ? kortRevisor(r.revisor_navn) : r.fravalg_revisjon ? 'Valgt bort' : 'Ingen';
   el.innerHTML = `${topp}
@@ -343,7 +337,6 @@ function tegnNesteSteg(r) {
         <h2 class="neste-navn"><button data-apne="${esc(r.orgnr)}">${esc(penNavn(r.navn))}</button></h2>
         <div class="neste-under">${under}</div>
       </div>
-      ${ring}
     </div>
     <div class="nokkelrad">
       <div class="nokkelboks"><div class="nokkelboks-etikett">Inntekt</div><div class="nokkelboks-tall">${kr(r.driftsinntekter)}</div></div>
